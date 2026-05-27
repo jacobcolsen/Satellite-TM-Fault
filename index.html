@@ -1189,27 +1189,55 @@ body { display:flex; }
 
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PHASE 1 JAVASCRIPT — nav, UTC clock, MET counter
-     (Three.js + telemetry added in Phase 2)
+     THREE.JS IMPORT MAP
 ═══════════════════════════════════════════════════════════════ -->
-<script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 2 — TELEMETRY ENGINE + THREE.JS VIEWERS
+     (Phase 1 nav/clock absorbed here; charts & 2D widgets in 3–5)
+═══════════════════════════════════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 'use strict';
 
-// ── Sidebar navigation ─────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// SIDEBAR NAVIGATION  (from Phase 1)
+// ═══════════════════════════════════════════════════════════════
 document.querySelectorAll('.nav-item[data-page]').forEach(item => {
   item.addEventListener('click', () => {
-    // Update nav active state
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     item.classList.add('active');
-
-    // Swap visible page
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     const target = document.getElementById('page-' + item.dataset.page);
     if (target) target.classList.remove('hidden');
+
+    // Re-fit orbit renderer once its canvas is actually visible
+    if (item.dataset.page === 'attitude' && orbitRenderer) {
+      const c = document.getElementById('orbit-canvas');
+      if (c) {
+        sizeCanvas(c);
+        orbitRenderer.setSize(c._cssW, c._cssH, false);
+        if (orbitCamera) {
+          orbitCamera.aspect = c._cssW / c._cssH;
+          orbitCamera.updateProjectionMatrix();
+        }
+        orbitRenderer.render(orbitScene, orbitCamera);
+      }
+    }
   });
 });
 
-// ── UTC clock ──────────────────────────────────────────────────
+// UTC clock
 function updateClock() {
   const now = new Date();
   const pad = (n, w=2) => String(n).padStart(w, '0');
@@ -1220,36 +1248,621 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-// ── MET counter (simple ticker — full physics engine in Phase 2) ─
-let metSec = 0;
-function updateMET() {
-  metSec++;
-  const h = String(Math.floor(metSec / 3600)).padStart(3, '0');
-  const m = String(Math.floor((metSec % 3600) / 60)).padStart(2, '0');
-  const s = String(metSec % 60).padStart(2, '0');
-  const metStr = `${h}:${m}:${s}`;
-  document.getElementById('met').textContent     = metStr;
-  document.getElementById('sb-met').textContent  = 'MET ' + metStr;
-  document.getElementById('orb-count').textContent =
-    String(142 + Math.floor(metSec / 5400)).padStart(4, '0');
-  document.getElementById('op-orb').textContent  =
-    String(142 + Math.floor(metSec / 5400)).padStart(4, '0');
+// ═══════════════════════════════════════════════════════════════
+// TELEMETRY ENGINE  — 2 Hz, 5-min rolling history
+// ═══════════════════════════════════════════════════════════════
+class TelemetryEngine {
+  constructor() {
+    this.missionElapsed = 0;
+    this.faultActive    = false;
+    this.faultElapsed   = 0;
+    this.HZ             = 2;
+    this.HISTORY        = 600;   // 300 s at 2 Hz
+
+    // ── nominal values ────────────────────────────────────────
+    this.nom = {
+      ATT_ROLL:0.0, ATT_PITCH:0.0, ATT_YAW:0.0,
+      ATT_ROLLRATE:0, ATT_PITCHRATE:0, ATT_YAWRATE:0,
+      RW1_SPEED:3240, RW2_SPEED:-2810, RW3_SPEED:1950, RW4_SPEED:4100,
+      PWR_SOLAR_A:148.2, PWR_SOLAR_B:151.7,
+      PWR_BATT_SOC:82.4, PWR_BATT_V:28.14,
+      PWR_ADCS_DRAW:34.2, PWR_BUS_LOAD:198.4,
+      PROP_TANK_PRESS:312.4, PROP_TANK_TEMP:18.7,
+      PROP_MASS:24.820,
+      PROP_V1_FLOW:0, PROP_V2_FLOW:0, PROP_V3_FLOW:0,
+      PROP_V4_FLOW:0, PROP_V5_FLOW:0, PROP_V8_FLOW:0,
+      THERM_PANEL_A:-22.4, THERM_BATT:14.1, THERM_PROP_LINE:16.3,
+      ME_TANK_PRESS:445.2, ME_FUEL_FLOW:0.000, ME_OX_FLOW:0.000,
+      ME_CHAMBER_PRESS:0.0, ME_NOZZLE_TEMP:22.4,
+      PLD_LASER_ALIGN:0.003, PLD_SHARK_TEMP:21.3,
+      PLD_SHARK_ACT:78.0, PLD_PHOTON_OUT:847.0,
+      ALTITUDE:408.0
+    };
+
+    // ── noise sigmas ──────────────────────────────────────────
+    this.sig = {
+      ATT_ROLL:0.008,   ATT_PITCH:0.006,   ATT_YAW:0.010,
+      ATT_ROLLRATE:8e-4, ATT_PITCHRATE:6e-4, ATT_YAWRATE:9e-4,
+      RW1_SPEED:1.5, RW2_SPEED:1.5, RW3_SPEED:1.2, RW4_SPEED:1.8,
+      PWR_SOLAR_A:0.4, PWR_SOLAR_B:0.4,
+      PWR_BATT_SOC:0.05, PWR_BATT_V:0.02,
+      PWR_ADCS_DRAW:0.3, PWR_BUS_LOAD:0.6,
+      PROP_TANK_PRESS:0.15, PROP_TANK_TEMP:0.08,
+      PROP_MASS:0.002,
+      PROP_V1_FLOW:0.004, PROP_V2_FLOW:0.004, PROP_V3_FLOW:0.005,
+      PROP_V4_FLOW:0.004, PROP_V5_FLOW:0.004, PROP_V8_FLOW:0.004,
+      THERM_PANEL_A:0.3, THERM_BATT:0.10, THERM_PROP_LINE:0.05,
+      ME_TANK_PRESS:0.25, ME_FUEL_FLOW:0.002, ME_OX_FLOW:0.002,
+      ME_CHAMBER_PRESS:0.4, ME_NOZZLE_TEMP:0.10,
+      PLD_LASER_ALIGN:0.001, PLD_SHARK_TEMP:0.05,
+      PLD_SHARK_ACT:0.4, PLD_PHOTON_OUT:1.2,
+      ALTITUDE:0.05
+    };
+
+    this.val  = Object.assign({}, this.nom);
+    this.hist = {};
+    for (const k of Object.keys(this.nom)) {
+      this.hist[k] = new Array(this.HISTORY).fill(this.nom[k]);
+    }
+
+    // ── orbital mechanics state ───────────────────────────────
+    this.trueAnomaly  = 0;     // degrees 0–360
+    this.inclination  = 51.6;  // degrees
+    this.raan         = 180.0; // right ascension of ascending node, deg
+    this.argPerigee   = 0.0;
+    // Earth rotation accumulated (deg)
+    this._earthRot    = 0;
+
+    // ── alert log ─────────────────────────────────────────────
+    this.events       = [];
+    this._alertId     = 0;
+    this._lastAlertT  = -999;
+
+    // ── integrated physics state (attitude) ───────────────────
+    this._oscPhase      = 0;
+    this._rollOsc       = 0;
+    this._rollOscRate   = 0;
+    this._rollDrift     = 0;
+    this._rollDriftRate = 0;
+    this._pitchDrift    = 0;
+    this._yawDrift      = 0;
+    this.overwhelmed    = false;
+    this._tumbleRateR   = 0;
+    this._tumbleRateP   = 0;
+    this._tumbleRateY   = 0;
+    this._freeRoll      = 0;
+    this._freePitch     = 0;
+    this._freeYaw       = 0;
+    this._massLoss      = 0;
+    this._nomMassLoss   = 0;
+    this._pressLoss     = 0;
+    this._nomPressLoss  = 0;
+    this._rw1Drift      = 0;
+    this._rw3Drift      = 0;
+    this._adcsExtra     = 0;
+    this._battHeat      = 0;
+    this._propLineCool  = 0;
+    this._alignDrift    = 0;
+  }
+
+  _gauss(s) {
+    const u = Math.random(), v = Math.random();
+    return s * Math.sqrt(-2*Math.log(u||1e-9)) * Math.cos(2*Math.PI*v);
+  }
+
+  magnitude() {
+    if (!this.faultActive) return 0;
+    return 1 / (1 + Math.exp(-0.035 * (this.faultElapsed - 40)));
+  }
+
+  rcsMagnitude() {
+    if (!this.faultActive) return 0;
+    return 1 / (1 + Math.exp(-0.6 * (this.faultElapsed - 52)));
+  }
+
+  tick(dt) {
+    this.missionElapsed += dt;
+    if (this.faultActive) this.faultElapsed += dt;
+
+    const M  = this.magnitude();
+    const ft = this.faultElapsed;
+
+    // orbital mechanics
+    const PERIOD_S   = 5568;                        // 92.8-min period
+    this.trueAnomaly = (this.missionElapsed / PERIOD_S * 360) % 360;
+    this._earthRot   = (this.missionElapsed * 360 / 86400) % 360;
+    // altitude with tiny eccentricity variation
+    this.val.ALTITUDE = this.nom.ALTITUDE + 0.8*Math.sin(this.trueAnomaly * Math.PI/180)
+                        + this._gauss(0.05);
+
+    // nominal background propellant depletion
+    this._nomPressLoss += 0.02 / 60 * dt;
+    this._nomMassLoss  += 1.8e-6 * dt;
+
+    // ── FAULT PHYSICS ─────────────────────────────────────────
+    if (this.faultActive && M > 0) {
+      if (!this.overwhelmed && (Math.abs(this._rollOsc) > 12 || ft > 480)) {
+        this.overwhelmed    = true;
+        this._tumbleRateR   = this._rollOscRate + 0.15;
+        this._tumbleRateP   = this._rollOscRate * 0.3  + this._gauss(0.04);
+        this._tumbleRateY   = this._rollOscRate * -0.2 + this._gauss(0.04);
+      }
+      if (this.overwhelmed) {
+        const accel = 0.004 * Math.min(M, 1.0);
+        this._tumbleRateR += accel * dt;
+        this._tumbleRateP += accel * 0.25 * dt;
+        this._tumbleRateY += accel * -0.18 * dt;
+        this._freeRoll  += this._tumbleRateR * dt;
+        this._freePitch += this._tumbleRateP * dt;
+        this._freeYaw   += this._tumbleRateY * dt;
+      } else {
+        const omega = 2*Math.PI * (0.038 + 0.012 * M);
+        const zeta  = Math.max(0.015, 0.12 - 0.10 * M);
+        const drive = 0.014 * M;
+        const accel = -omega*omega * this._rollOsc
+                      - 2*zeta*omega * this._rollOscRate + drive;
+        this._rollOscRate += accel * dt;
+        this._rollOsc     += this._rollOscRate * dt;
+        const driftAccel   = 2.0e-4 * M * M;
+        this._rollDriftRate += driftAccel * dt;
+        this._rollDrift     += this._rollDriftRate * dt;
+        this._pitchDrift    += this._rollDriftRate * 0.15 * dt;
+        this._yawDrift      += this._rollDriftRate * -0.11 * dt;
+        this._rw1Drift +=  28 * M * M * dt;
+        this._rw3Drift -=  22 * M * M * dt;
+      }
+      const RM2 = this.rcsMagnitude();
+      const compFiring = this.overwhelmed ? 0 : RM2;
+      this._massLoss  += (4.5e-4 * M + 2.0e-4 * compFiring) * dt;
+      this._pressLoss += (5.5 * M + 2.5 * compFiring) / 60 * dt;
+      this._adcsExtra  = this.overwhelmed ? 8 : 22 * M * M;
+      this._battHeat     += 3.5e-4 * M * dt;
+      this._propLineCool -= 2.2e-4 * M * dt;
+      const attErr = Math.abs(this.overwhelmed ? this._freeRoll : this._rollOsc + this._rollDrift);
+      this._alignDrift = attErr * 0.006;
+    }
+
+    const n = this.nom, s = this.sig, v = this.val;
+    const g = (k) => this._gauss(s[k]);
+
+    // ── ATTITUDE ─────────────────────────────────────────────
+    if (this.overwhelmed) {
+      v.ATT_ROLL      = this._freeRoll  + g('ATT_ROLL');
+      v.ATT_PITCH     = this._freePitch + g('ATT_PITCH');
+      v.ATT_YAW       = this._freeYaw   + g('ATT_YAW');
+      v.ATT_ROLLRATE  = this._tumbleRateR + g('ATT_ROLLRATE');
+      v.ATT_PITCHRATE = this._tumbleRateP + g('ATT_PITCHRATE');
+      v.ATT_YAWRATE   = this._tumbleRateY + g('ATT_YAWRATE');
+    } else {
+      const tR = this._rollOsc + this._rollDrift;
+      const tP = this._rollOsc * 0.18 + this._pitchDrift;
+      const tY = this._rollOsc * -0.13 + this._yawDrift;
+      v.ATT_ROLL      = tR + g('ATT_ROLL');
+      v.ATT_PITCH     = tP + g('ATT_PITCH');
+      v.ATT_YAW       = tY + g('ATT_YAW');
+      v.ATT_ROLLRATE  = this._rollOscRate + this._rollDriftRate            + g('ATT_ROLLRATE');
+      v.ATT_PITCHRATE = this._rollOscRate*0.18 + this._rollDriftRate*0.15  + g('ATT_PITCHRATE');
+      v.ATT_YAWRATE   =-this._rollOscRate*0.13 - this._rollDriftRate*0.11  + g('ATT_YAWRATE');
+    }
+
+    // ── REACTION WHEELS ──────────────────────────────────────
+    v.RW1_SPEED = n.RW1_SPEED + this._rw1Drift + g('RW1_SPEED');
+    v.RW2_SPEED = n.RW2_SPEED                  + g('RW2_SPEED');
+    v.RW3_SPEED = n.RW3_SPEED + this._rw3Drift + g('RW3_SPEED');
+    v.RW4_SPEED = n.RW4_SPEED                  + g('RW4_SPEED');
+
+    // ── POWER ────────────────────────────────────────────────
+    const eclFrac = 0.65 + 0.35*Math.sin(this.missionElapsed * 2*Math.PI / 5400);
+    v.PWR_SOLAR_A   = n.PWR_SOLAR_A * eclFrac + g('PWR_SOLAR_A');
+    v.PWR_SOLAR_B   = n.PWR_SOLAR_B * eclFrac + g('PWR_SOLAR_B');
+    v.PWR_ADCS_DRAW = n.PWR_ADCS_DRAW + this._adcsExtra + g('PWR_ADCS_DRAW');
+    v.PWR_BUS_LOAD  = n.PWR_BUS_LOAD  + this._adcsExtra + g('PWR_BUS_LOAD');
+    const deficit   = Math.max(0, v.PWR_BUS_LOAD - v.PWR_SOLAR_A - v.PWR_SOLAR_B);
+    v.PWR_BATT_V    = n.PWR_BATT_V   - deficit*2.2e-4 + g('PWR_BATT_V');
+    v.PWR_BATT_SOC  = n.PWR_BATT_SOC - deficit*1.1e-4 + g('PWR_BATT_SOC');
+
+    // ── PROPULSION ───────────────────────────────────────────
+    v.PROP_MASS       = Math.max(0, n.PROP_MASS - this._massLoss - this._nomMassLoss);
+    v.PROP_TANK_PRESS = n.PROP_TANK_PRESS - this._pressLoss - this._nomPressLoss + g('PROP_TANK_PRESS');
+    v.PROP_TANK_TEMP  = n.PROP_TANK_TEMP  + this._propLineCool + g('PROP_TANK_TEMP');
+    v.PROP_V3_FLOW = Math.max(0,
+      this.faultActive ? (0.025 + 0.80*Math.min(M,1.0) + g('PROP_V3_FLOW'))
+                       : g('PROP_V3_FLOW'));
+    v.PROP_V1_FLOW = Math.max(0, g('PROP_V1_FLOW'));
+    v.PROP_V2_FLOW = Math.max(0, g('PROP_V2_FLOW'));
+    v.PROP_V5_FLOW = Math.max(0, g('PROP_V5_FLOW'));
+    const RM = this.rcsMagnitude();
+    const rcsOn = !this.overwhelmed && RM > 0.15;
+    const pulsePeriod = rcsOn ? Math.max(3, 15/(M*6+0.1)) : 9999;
+    const phase4 = (ft % pulsePeriod) / pulsePeriod;
+    const phase8 = ((ft + pulsePeriod*0.52) % pulsePeriod) / pulsePeriod;
+    v.PROP_V4_FLOW = Math.max(0, (phase4 < 0.10 && rcsOn) ? 0.44+this._gauss(0.015) : Math.max(0,g('PROP_V4_FLOW')));
+    v.PROP_V8_FLOW = Math.max(0, (phase8 < 0.08 && rcsOn) ? 0.37+this._gauss(0.012) : Math.max(0,g('PROP_V8_FLOW')));
+
+    // ── THERMAL ──────────────────────────────────────────────
+    v.THERM_PANEL_A   = n.THERM_PANEL_A   + g('THERM_PANEL_A');
+    v.THERM_BATT      = n.THERM_BATT      + this._battHeat    + g('THERM_BATT');
+    v.THERM_PROP_LINE = n.THERM_PROP_LINE + this._propLineCool + g('THERM_PROP_LINE');
+
+    // ── MAIN ENGINE ──────────────────────────────────────────
+    v.ME_TANK_PRESS    = n.ME_TANK_PRESS    + g('ME_TANK_PRESS');
+    v.ME_FUEL_FLOW     = Math.max(0, g('ME_FUEL_FLOW'));
+    v.ME_OX_FLOW       = Math.max(0, g('ME_OX_FLOW'));
+    v.ME_CHAMBER_PRESS = Math.max(0, g('ME_CHAMBER_PRESS'));
+    v.ME_NOZZLE_TEMP   = n.ME_NOZZLE_TEMP  + g('ME_NOZZLE_TEMP');
+
+    // ── PAYLOAD ──────────────────────────────────────────────
+    v.PLD_LASER_ALIGN = Math.max(0, n.PLD_LASER_ALIGN + this._alignDrift + g('PLD_LASER_ALIGN'));
+    v.PLD_SHARK_TEMP  = n.PLD_SHARK_TEMP + this._battHeat*0.5 + g('PLD_SHARK_TEMP');
+    v.PLD_SHARK_ACT   = Math.min(100, n.PLD_SHARK_ACT + 5*Math.min(M,1) + (this.overwhelmed?12:0) + g('PLD_SHARK_ACT'));
+    v.PLD_PHOTON_OUT  = Math.max(0, n.PLD_PHOTON_OUT - this._alignDrift*60 + g('PLD_PHOTON_OUT'));
+
+    // ── ALERTS ───────────────────────────────────────────────
+    const rollAbs = Math.abs(v.ATT_ROLL);
+    if (rollAbs > 1.0 && (this.missionElapsed - this._lastAlertT) > 8) {
+      const sev = rollAbs > 5 ? 'CRITICAL' : rollAbs > 2 ? 'WARN' : 'INFO';
+      this.events.unshift({
+        id:   ++this._alertId,
+        met:  this.missionElapsed,
+        type: sev,
+        msg:  `ATT EXCEEDANCE  ROLL=${v.ATT_ROLL.toFixed(2)}°  PITCH=${v.ATT_PITCH.toFixed(2)}°`
+      });
+      if (this.events.length > 15) this.events.pop();
+      this._lastAlertT = this.missionElapsed;
+    }
+
+    // ── push to history ──────────────────────────────────────
+    for (const k of Object.keys(this.hist)) {
+      this.hist[k].push(v[k]);
+      if (this.hist[k].length > this.HISTORY) this.hist[k].shift();
+    }
+  }
+
+  injectFault() {
+    if (!this.faultActive) { this.faultActive = true; this.faultElapsed = 0; }
+  }
+
+  resetFault() {
+    this.faultActive = false; this.faultElapsed = 0; this.overwhelmed = false;
+    this._rollOsc=0; this._rollOscRate=0; this._rollDrift=0; this._rollDriftRate=0;
+    this._pitchDrift=0; this._yawDrift=0; this._freeRoll=0; this._freePitch=0;
+    this._freeYaw=0; this._rw1Drift=0; this._rw3Drift=0;
+    this._massLoss=0; this._pressLoss=0; this._adcsExtra=0;
+    this._battHeat=0; this._propLineCool=0; this._alignDrift=0;
+    this.events=[];
+  }
 }
-setInterval(updateMET, 1000);
 
-// ── Fault injection key hint ───────────────────────────────────
-document.getElementById('fault-btn').addEventListener('click', () => {
-  // Wired to TelemetryEngine in Phase 2; notify user for now
-  console.info('[SSL-1] Fault injection wired in Phase 2.');
-});
+// ═══════════════════════════════════════════════════════════════
+// CANVAS SIZER
+// ═══════════════════════════════════════════════════════════════
+function sizeCanvas(el) {
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  el.width  = Math.round(r.width  || el.offsetWidth  || 400);
+  el.height = Math.round(r.height || el.offsetHeight || 200);
+  el._cssW  = el.width;
+  el._cssH  = el.height;
+}
 
-// ── Ground station cycle placeholder ─────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// THREE.JS — SATELLITE 3-D ATTITUDE VIEWER
+// ═══════════════════════════════════════════════════════════════
+let satRenderer, satScene, satCamera;
+
+function initSatViewer() {
+  const canvas = document.getElementById('sat-canvas');
+  if (!canvas) return;
+  sizeCanvas(canvas);
+  const W = canvas._cssW || 400, H = canvas._cssH || 280;
+
+  satRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  satRenderer.setPixelRatio(window.devicePixelRatio);
+  satRenderer.setSize(W, H, false);
+
+  satScene = new THREE.Scene();
+  satScene.background = new THREE.Color(0x02020f);
+
+  satCamera = new THREE.PerspectiveCamera(45, W/H, 0.01, 2000);
+  satCamera.position.set(3.5, 1.8, 4.5);
+  satCamera.lookAt(0, 0, 0);
+
+  // Stars
+  const sv = [];
+  for (let i = 0; i < 3200; i++) {
+    const r  = 180 + Math.random()*200;
+    const th = Math.random()*Math.PI*2;
+    const ph = Math.acos(2*Math.random()-1);
+    sv.push(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph));
+  }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.Float32BufferAttribute(sv, 3));
+  satScene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0xffffff, size:0.6 })));
+
+  // Lighting
+  const sun = new THREE.DirectionalLight(0xfff8e0, 1.4);
+  sun.position.set(8, 4, 6);
+  satScene.add(sun);
+  satScene.add(new THREE.AmbientLight(0x112244, 0.45));
+
+  // Attitude pivot
+  const pivot = new THREE.Group();
+  satScene.userData.pivot = pivot;
+  satScene.add(pivot);
+
+  // Load Hubble GLB from disk
+  const loader = new GLTFLoader();
+  loader.load('Hubble.glb',
+    (gltf) => {
+      const model = gltf.scene;
+      model.scale.setScalar(0.8);
+      pivot.add(model);
+    },
+    undefined,
+    () => buildProceduralSat(pivot)   // fallback on error
+  );
+}
+
+function buildProceduralSat(pivot) {
+  const gold = new THREE.MeshPhongMaterial({ color:0xc8a000, shininess:60 });
+  const blue = new THREE.MeshPhongMaterial({ color:0x1144aa, emissive:0x001133 });
+  const grey = new THREE.MeshPhongMaterial({ color:0xa0a0a0 });
+  // body
+  pivot.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,1.6,16), gold)));
+  // solar panels
+  [-1.6, 1.6].forEach(x => {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.04,0.9), blue);
+    p.position.set(x, 0, 0); pivot.add(p);
+  });
+  // dish
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(0.28,0.45,12), grey);
+  dish.rotation.x = Math.PI; dish.position.set(0,1.1,0); pivot.add(dish);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// THREE.JS — ORBIT VISUALIZATION  (perspective, inclined ring)
+// ═══════════════════════════════════════════════════════════════
+let orbitRenderer, orbitScene, orbitCamera;
+let earthMesh, orbitRingGroup, satDotMesh;
+
+function initOrbitViewer() {
+  const canvas = document.getElementById('orbit-canvas');
+  if (!canvas) return;
+  sizeCanvas(canvas);
+  const W = canvas._cssW || 600, H = canvas._cssH || 300;
+
+  orbitRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  orbitRenderer.setPixelRatio(window.devicePixelRatio);
+  orbitRenderer.setSize(W, H, false);
+
+  orbitScene = new THREE.Scene();
+  orbitScene.background = new THREE.Color(0x01010e);
+
+  orbitCamera = new THREE.PerspectiveCamera(40, W/H, 0.1, 1000);
+  orbitCamera.position.set(0, 5, 9);
+  orbitCamera.lookAt(0, 0, 0);
+
+  // Background stars
+  const sv = [];
+  for (let i = 0; i < 2400; i++) {
+    const r  = 80 + Math.random()*40;
+    const th = Math.random()*Math.PI*2;
+    const ph = Math.acos(2*Math.random()-1);
+    sv.push(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph));
+  }
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.Float32BufferAttribute(sv, 3));
+  orbitScene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0xffffff, size:0.25 })));
+
+  // Earth
+  const etex = new THREE.TextureLoader().load('Earth_Blue_Marble.jpg');
+  earthMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(2.0, 48, 48),
+    new THREE.MeshPhongMaterial({ map: etex, specular:0x112233, shininess:20 })
+  );
+  orbitScene.add(earthMesh);
+
+  // Thin atmosphere halo
+  const atmoMat = new THREE.MeshBasicMaterial({
+    color:0x3388ff, transparent:true, opacity:0.07, side:THREE.BackSide
+  });
+  orbitScene.add(new THREE.Mesh(new THREE.SphereGeometry(2.12, 32, 32), atmoMat));
+
+  // Orbit ring group — tilted by inclination then rotated by RAAN
+  orbitRingGroup = new THREE.Group();
+  orbitRingGroup.rotation.z = 51.6 * Math.PI / 180;   // inclination
+  orbitScene.add(orbitRingGroup);
+
+  // Orbit tube
+  const pts = [];
+  for (let i = 0; i <= 256; i++) {
+    const a = (i / 256) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a)*2.52, Math.sin(a)*2.52, 0));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts, true);
+  const tubeMat = new THREE.MeshBasicMaterial({ color:0x00c8f0, transparent:true, opacity:0.45 });
+  orbitRingGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 256, 0.010, 6, true), tubeMat));
+
+  // Satellite dot
+  satDotMesh = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.09),
+    new THREE.MeshBasicMaterial({ color:0xffee44 })
+  );
+  orbitRingGroup.add(satDotMesh);
+
+  // Sat glow sprite
+  const glowMat = new THREE.MeshBasicMaterial({
+    color:0xffee44, transparent:true, opacity:0.18
+  });
+  satDotMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), glowMat));
+
+  // Lighting
+  const orbitSun = new THREE.DirectionalLight(0xfff8e0, 1.5);
+  orbitSun.position.set(10, 5, 8);
+  orbitScene.add(orbitSun);
+  orbitScene.add(new THREE.AmbientLight(0x112244, 0.5));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HEADER + BASIC TM UPDATE
+// ═══════════════════════════════════════════════════════════════
 const STATIONS = ['GOLDSTONE','MADRID','CANBERRA'];
-setInterval(() => {
-  const idx = Math.floor(metSec / 150) % 3;
-  const aos = (Math.floor(metSec / 150) % 2 === 0);
-  document.getElementById('gs-name').textContent = STATIONS[idx];
-}, 3000);
+
+function updateHeader(tm) {
+  const sec = Math.floor(tm.missionElapsed);
+  const h   = String(Math.floor(sec/3600)).padStart(3,'0');
+  const m   = String(Math.floor((sec%3600)/60)).padStart(2,'0');
+  const s   = String(sec%60).padStart(2,'0');
+  const met = `${h}:${m}:${s}`;
+  document.getElementById('met').textContent    = met;
+  document.getElementById('sb-met').textContent = 'MET ' + met;
+
+  const orbNum = String(142 + Math.floor(tm.missionElapsed/5400)).padStart(4,'0');
+  document.getElementById('orb-count').textContent = orbNum;
+  document.getElementById('op-orb').textContent    = orbNum;
+
+  const sta = STATIONS[Math.floor(tm.missionElapsed/150)%3];
+  const aos = (Math.floor(tm.missionElapsed/150)%2 === 0);
+  document.getElementById('gs-name').textContent = (aos?'AOS ':'LOS ') + sta;
+
+  // System status badge
+  const badge = document.getElementById('sys-status');
+  if (tm.faultActive) {
+    badge.className = 's-crit'; badge.textContent = 'FAULT';
+  } else if (Math.abs(tm.val.ATT_ROLL) > 1 || Math.abs(tm.val.ATT_PITCH) > 1) {
+    badge.className = 's-warn'; badge.textContent = 'CAUTION';
+  } else {
+    badge.className = 's-nom';  badge.textContent = 'NOMINAL';
+  }
+
+  // True anomaly and orbit params on attitude page
+  document.getElementById('op-ta').textContent  = tm.trueAnomaly.toFixed(1) + '°';
+  document.getElementById('op-alt').textContent = tm.val.ALTITUDE.toFixed(1) + ' km';
+  document.getElementById('op-raan').textContent = tm.raan.toFixed(1) + '°';
+
+  // Live attitude values (overview + attitude page)
+  const fmt = (n,d=3) => Number(n).toFixed(d);
+  document.getElementById('ov-roll').textContent  = fmt(tm.val.ATT_ROLL);
+  document.getElementById('ov-pitch').textContent = fmt(tm.val.ATT_PITCH);
+  document.getElementById('ov-yaw').textContent   = fmt(tm.val.ATT_YAW);
+  document.getElementById('adi-roll').textContent  = fmt(tm.val.ATT_ROLL)  + '°';
+  document.getElementById('adi-pitch').textContent = fmt(tm.val.ATT_PITCH) + '°';
+  document.getElementById('adi-yaw').textContent   = fmt(tm.val.ATT_YAW)   + '°';
+  document.getElementById('adi-rr').textContent    = fmt(tm.val.ATT_ROLLRATE,4)  + ' °/s';
+  document.getElementById('adi-pr').textContent    = fmt(tm.val.ATT_PITCHRATE,4) + ' °/s';
+  document.getElementById('adi-yr').textContent    = fmt(tm.val.ATT_YAWRATE,4)   + ' °/s';
+
+  // Quaternion (approximate from Euler, cosmetic)
+  const r = tm.val.ATT_ROLL*Math.PI/360, p = tm.val.ATT_PITCH*Math.PI/360, y = tm.val.ATT_YAW*Math.PI/360;
+  const qw = +(Math.cos(r)*Math.cos(p)*Math.cos(y) + Math.sin(r)*Math.sin(p)*Math.sin(y)).toFixed(4);
+  const qx = +(Math.sin(r)*Math.cos(p)*Math.cos(y) - Math.cos(r)*Math.sin(p)*Math.sin(y)).toFixed(4);
+  const qy = +(Math.cos(r)*Math.sin(p)*Math.cos(y) + Math.sin(r)*Math.cos(p)*Math.sin(y)).toFixed(4);
+  const qz = +(Math.cos(r)*Math.cos(p)*Math.sin(y) - Math.sin(r)*Math.sin(p)*Math.cos(y)).toFixed(4);
+  document.getElementById('adi-quat').textContent =
+    `q[ ${qw.toFixed(4)}  ${qx.toFixed(4)}  ${qy.toFixed(4)}  ${qz.toFixed(4)} ]`;
+
+  // Orbit mini panel params
+  document.getElementById('ov-raan').textContent = tm.raan.toFixed(1) + '°';
+  document.getElementById('ov-alt').textContent  = tm.val.ALTITUDE.toFixed(1) + ' km';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════════
+const tm        = new TelemetryEngine();
+let   lastTick  = performance.now();
+let   camAngle  = 0;
+
+const ORBIT_PERIOD_S = 5568;
+const ORBIT_SPEED    = (2 * Math.PI) / ORBIT_PERIOD_S;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - lastTick) / 1000, 0.1);
+  lastTick = now;
+
+  // Tick TM at 2 Hz
+  animate._acc = (animate._acc || 0) + dt;
+  while (animate._acc >= 0.5) { tm.tick(0.5); animate._acc -= 0.5; }
+
+  const activePage = document.querySelector('.page:not(.hidden)')?.id || 'page-overview';
+
+  // ── Satellite attitude viewer (overview page) ──────────────
+  if (satScene && satScene.userData.pivot) {
+    const p    = satScene.userData.pivot;
+    const nadir = (2*Math.PI * tm.missionElapsed) / ORBIT_PERIOD_S;
+    const dR   = THREE.MathUtils.degToRad;
+    p.rotation.set(
+      dR(tm.val.ATT_ROLL)  + Math.sin(nadir)*0.02,
+      nadir + dR(tm.val.ATT_YAW),
+      dR(tm.val.ATT_PITCH),
+      'YXZ'
+    );
+  }
+  if (satRenderer && activePage === 'page-overview') {
+    satRenderer.render(satScene, satCamera);
+  }
+
+  // ── Orbit viewer (attitude page) ──────────────────────────
+  if (orbitScene) {
+    // Earth rotation
+    if (earthMesh) earthMesh.rotation.y += (2*Math.PI / 86400) * dt;
+
+    // Satellite dot on ring at trueAnomaly
+    if (satDotMesh) {
+      const ta = tm.trueAnomaly * Math.PI / 180;
+      satDotMesh.position.set(Math.cos(ta)*2.52, Math.sin(ta)*2.52, 0);
+    }
+
+    // Slow cinematic camera orbit
+    camAngle += 0.0003;
+    if (orbitCamera) {
+      orbitCamera.position.set(Math.sin(camAngle)*9, 4.5 + Math.sin(camAngle*0.4)*1.5, Math.cos(camAngle)*9);
+      orbitCamera.lookAt(0, 0, 0);
+    }
+  }
+  if (orbitRenderer && activePage === 'page-attitude') {
+    orbitRenderer.render(orbitScene, orbitCamera);
+  }
+
+  // ── Header + TM text panels ───────────────────────────────
+  updateHeader(tm);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KEY HANDLERS
+// ═══════════════════════════════════════════════════════════════
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'f' || e.key === 'F') { e.preventDefault(); tm.injectFault(); }
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); tm.resetFault(); }
+});
+document.getElementById('fault-btn').addEventListener('click', () => tm.injectFault());
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+function boot() {
+  // Size sat canvas (visible at load); orbit canvas is in hidden page —
+  // it gets properly sized when user navigates to attitude page.
+  const satC = document.getElementById('sat-canvas');
+  if (satC) sizeCanvas(satC);
+
+  // Pre-fill 5 min of nominal history so charts start full
+  for (let i = 0; i < 600; i++) tm.tick(0.5);
+
+  initSatViewer();
+  initOrbitViewer();   // inits scene/objects; renderer resize deferred to nav
+
+  requestAnimationFrame(animate);
+}
+
+// Module scripts are deferred — 'load' may already have fired by the time
+// this code runs (especially in headless / fast environments).
+if (document.readyState === 'complete') {
+  boot();
+} else {
+  window.addEventListener('load', boot);
+}
 </script>
 
 </body>
