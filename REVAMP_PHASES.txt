@@ -1,0 +1,523 @@
+================================================================================
+  SSL-1 / HELIOS-7  DASHBOARD REVAMP — PHASED IMPLEMENTATION PLAN
+  File: REVAMP_PHASES.txt
+  Ref: Screen 1.png (Overview) and Screen 2.png (Attitude & Orbit)
+================================================================================
+
+OVERVIEW
+--------
+Complete UI/UX overhaul of index.html from a flat strip-chart layout to a
+two-page mission-control dashboard with sidebar navigation, instrument widgets,
+3D orbit visualization, and all TM parameters alive with real physics.
+
+Assets reused: Hubble.glb, Earth_Blue_Marble.jpg (loaded from disk via HTTP,
+no longer embedded as base64 — shrinks file from 17 MB to ~60 KB).
+
+Total estimated phases: 6
+Estimated total lines of new code: ~1,600
+
+
+================================================================================
+PHASE 1 — SKELETON + DESIGN SYSTEM
+================================================================================
+Goal: Replace all CSS and HTML chrome (sidebar, topbar, page containers) with
+the new design system.  No data or widgets yet — just the empty shell.
+
+Files changed: index.html only
+
+Tasks:
+  1.1  Define CSS variables
+         --bg            #08091a
+         --sidebar-bg    #060812
+         --panel-bg      #0c1228
+         --panel-border  #1a3055
+         --text-primary  #d0dff0
+         --text-dim      #5a7a99
+         --accent-cyan   #00d4ff
+         --accent-green  #00e87a
+         --accent-yellow #ffcc00
+         --accent-red    #ff4545
+         --font-ui       'Inter', 'Segoe UI', sans-serif
+         --font-mono     'JetBrains Mono', 'Courier New', monospace
+
+  1.2  Sidebar (fixed left, 160 px)
+         - SSL-1 logo block with subtitle
+         - Nav list: OVERVIEW (active), ATTITUDE & ORBIT, POWER, THERMAL,
+           PROPULSION, COMMUNICATIONS, DATA, EVENT LOG, COMMANDED, SETTINGS
+         - Active item: cyan left border + brighter text
+         - Inactive items: dimmed, cursor:default
+         - Bottom: firmware version badge
+
+  1.3  Top header bar (48 px, sticky)
+         - Left: spacecraft icon placeholder + "SSL-1" + "SHARES WITH LASER SAT"
+           + system-status badge (green NOMINAL / red FAULT)
+         - Center: MISSION ELAPSED | UTC clock | GROUND STATION | NEXT PASS
+         - Right: [ EVENT LOG ] button
+
+  1.4  Main content area
+         - Two page divs: #page-overview.active + #page-attitude.hidden
+         - Clicking nav items toggles .active / .hidden classes
+         - Each page fills 100% of the remaining viewport
+
+  1.5  Panel component CSS
+         - .panel: dark bg, subtle border, border-radius 4px, overflow hidden
+         - .panel-header (.ph): 26 px title bar, left-aligned label, optional
+           LIVE badge (green dot + "LIVE" text, pulsing animation)
+         - .panel-body (.pb): flex:1, overflow hidden
+
+  1.6  Grid layouts
+         Overview (.ov-grid) — 3 cols × 3 rows:
+           grid-template-areas:
+             "spacecraft  attitude    power"
+             "thermal     payloads    comms"
+             "groundtrack groundtrack groundtrack"
+           Approx col ratio: 1.1fr  1.6fr  1fr
+           Row heights:       3fr    2fr    1.4fr
+
+         Attitude (.att-grid) — 4 cols × 3 rows:
+           grid-template-areas:
+             "adi          orbit-viz    orbit-params  orbit-shape"
+             "att-history  att-history  rw-status     passes"
+             "groundtrack2 alt-profile  att-alerts    att-alerts"
+           Approx col ratio: 1.1fr  1.5fr  1.1fr  0.9fr
+           Row heights:       2fr    2fr    1.8fr
+
+Verification:
+  - Open http://localhost:8080/index.html
+  - Sidebar renders with all nav items; clicking Overview / Attitude & Orbit
+    swaps the visible page
+  - Header shows static placeholder text
+  - All panel outlines visible with correct grid positions
+  - No JavaScript errors in console
+
+
+================================================================================
+PHASE 2 — TELEMETRY ENGINE EXTENSIONS + THREE.JS VIEWERS
+================================================================================
+Goal: Extend the existing TelemetryEngine with orbital mechanics and alert
+logging; adapt Three.js viewers for new canvas IDs and improve orbit viewer
+to a perspective 3D view with inclined orbit ring.
+
+Files changed: index.html (JavaScript section only)
+
+Tasks:
+  2.1  Keep TelemetryEngine class unchanged (all fault physics preserved)
+       Add to constructor:
+         this.trueAnomaly   = 0;    // degrees, 0–360
+         this.inclination   = 51.6; // degrees
+         this.raan          = 180;  // right ascension of ascending node, deg
+         this.argPerigee    = 0;    // degrees
+         this.altitude      = 408;  // km nominal
+         this.events        = [];   // alert log
+         this._lastAlertT   = -999;
+
+       Add to tick(dt):
+         - trueAnomaly advances at (360 / 5568) * dt deg/tick  (92.8-min period)
+         - altitude = 408 + 0.8*sin(trueAnomaly * DEG2RAD) + gauss(0.05)
+           (small eccentricity variation)
+         - After computing attitude values, check thresholds and push alerts:
+             |ROLL| > 1° → INFO   (throttle: 1 per 8 s)
+             |ROLL| > 2° → WARN
+             |ROLL| > 5° → CRITICAL
+           Event object: { id, met, type:'INFO'|'WARN'|'CRITICAL', msg }
+           Keep last 15 events
+
+  2.2  Satellite 3D viewer (initSatViewer)
+         - Change canvas ID lookup: 'sat-canvas' (same as current)
+         - Load Hubble.glb from disk: loader.load('Hubble.glb', ...)
+           (no longer base64 data URL)
+         - Keep all existing star/lighting/attitude pivot code unchanged
+
+  2.3  Orbit 3D viewer — NEW perspective design (initOrbitViewer)
+         Canvas ID: 'orbit-canvas' (in page-attitude)
+         Camera: PerspectiveCamera(40°, aspect, 0.1, 1000)
+                 positioned at (0, 5, 9), looking at origin
+                 auto-rotates slowly (yaw 0.001 rad/frame around Y)
+         Earth sphere radius 2.0, texture: TextureLoader('Earth_Blue_Marble.jpg')
+         Orbit ring:
+           - TubeGeometry along a circular path of radius 2.52 (408 km LEO)
+           - Ring group rotated by inclination around Z axis:
+               ringGroup.rotation.z = inclination * DEG2RAD
+               ringGroup.rotation.y = raan * DEG2RAD
+           - Material: cyan (#00d4ff) with opacity 0.6, linewidth 2
+         Satellite mesh: small octahedron (0.06 radius), yellow (#ffff00)
+           placed on ring at position driven by trueAnomaly
+         Apogee/perigee markers: tiny white dots on ring
+         Sun directional light at (10, 5, 8)
+         Ambient light 0x112244
+
+Verification:
+  - Hubble.glb loads (no fallback procedural satellite visible)
+  - Satellite 3D rotates in response to attitude; nadir spin visible
+  - Attitude page orbit viewer shows 3D inclined orbit with Earth and satellite dot
+  - No base64 blobs in source; file is now <100 KB
+
+
+================================================================================
+PHASE 3 — 2D INSTRUMENT WIDGETS
+================================================================================
+Goal: Implement all 2D canvas-drawn instruments:
+  ADI (Attitude Direction Indicator), battery arc gauge, signal arc gauge,
+  mini orbit schematic, orbit shape 2D, ground track canvas, altitude profile.
+
+Files changed: index.html (JavaScript section)
+
+Tasks:
+  3.1  drawADI(canvas, tm)
+         Circular ADI instrument:
+         - Clip to circle, radius = min(W,H)/2 - 6
+         - Rotate ctx by roll (deg→rad)
+         - Blue sky half / brown ground half split at pitch offset
+           pitchOffsetPx = tm.val.ATT_PITCH * 2.8 px/deg
+         - White horizon line
+         - Pitch ladder at ±10°, ±20°, ±30° with tick lengths 50px, 30px, 20px
+           and numeric labels on left side
+         - Fixed yellow aircraft symbol (wings + center dot, not rotated)
+         - Roll scale arc at top with tick marks at ±10°,±20°,±30°,±45°,±60°
+         - Roll pointer triangle at current bank angle
+         - Outer ring: dark metallic look
+         - Font: monospace 10px for ladder labels
+
+  3.2  drawBattGauge(canvas, tm)
+         Arc gauge (270° sweep):
+         - Track arc: dark gray stroke, lineWidth 10, from 225° to -45°
+         - Value arc: gradient red→yellow→green based on SOC value
+           SOC = tm.val.PWR_BATT_SOC (0–100 %)
+         - Center text: SOC.toFixed(0) + '%'  (large font, white)
+         - Sub-label: 'BATTERY SOC'
+         - Small needle or pointer at SOC angle
+
+  3.3  drawSignalGauge(canvas, tm)
+         Same arc gauge style:
+         - Signal % = normalize(RSSI, -100, -70) clamped 0–100
+         - RSSI derived: -87 + sin(met*0.04)*2.1 dBm
+         - Center text: signal% + '%'
+         - Color: red < 30%, yellow 30–60%, green > 60%
+         - Sub-label: 'SIGNAL'
+
+  3.4  drawOrbitMini(canvas, tm)  [overview page]
+         2D bird's-eye orbit schematic:
+         - Dark bg (#030815)
+         - Earth circle at center (radius ~35% of min dimension), blue fill
+         - Orbit ring at LEO radius (~55% of min dimension), cyan dashed stroke
+         - Satellite dot at trueAnomaly position on ring
+         - Pulsing glow ring on satellite dot
+
+  3.5  drawOrbitShape(canvas, tm)  [attitude page top-right]
+         2D side-view orbit shape:
+         - Show orbit as a slightly elliptical ring tilted by inclination
+         - Draw inclined ellipse (tilt = inc * cos(raan))
+         - Earth circle at center
+         - Mark apogee/perigee labels
+         - Satellite dot on ring
+
+  3.6  drawGroundTrack(canvas, tm)  [both pages]
+         - Fill background #030815
+         - Draw Earth_Blue_Marble.jpg (via earthImg HTML Image element)
+           at 30% opacity stretched to canvas
+         - Dark overlay rgba(5,15,35,0.58)
+         - Grid: lat lines every 30° (from -90 to 90), lon lines every 30°
+           color rgba(0,200,100,0.12), lineWidth 0.5
+         - Equator: rgba(0,200,100,0.3), lineWidth 1
+         - Compute ground track for ±1 orbit:
+             INC = 51.6°, T = 5568s
+             for dt in [-T, +T] step T/300:
+               M  = 2π/T * (tm.missionElapsed + dt)
+               lat = asin(sin(INC)*sin(M)) * R2D
+               lon = (atan2(cos(INC)*sin(M), cos(M)) - 2π/86400*(met+dt)) * R2D
+             Handle 180° lon wrap: break line when |Δlon| > 150°
+         - Past track: rgba(255,200,0,0.3) dashed, width 1.5
+         - Future track: rgba(255,200,0,0.85) solid, width 1.5
+         - Ground stations (lat,lon):
+             Goldstone   35.4°N  116.9°W  cyan circle + label
+             Madrid      40.4°N   15.5°W  cyan circle + label
+             Canberra    35.4°S  148.9°E  cyan circle + label
+             Houston     29.8°N   95.4°W  cyan circle + label
+         - Current satellite position: yellow filled circle (r=5) + glow ring
+           (animated pulse every second)
+
+  3.7  drawAltProfile(canvas, tm)  [attitude page bottom-center]
+         Simple strip-chart style:
+         - Show tm.hist.altitude (last 300 samples ≈ 150 s)
+         - Y range 405–412 km
+         - Cyan line, dark bg, grid
+         - Label 'ALT (km)' on Y-axis
+
+  3.8  drawPowerBar(canvas, tm)  [overview power panel]
+         Horizontal stacked bar chart:
+         - Solar A (green): tm.val.PWR_SOLAR_A / 350 * W
+         - Solar B (teal): tm.val.PWR_SOLAR_B / 350 * W (stacked)
+         - Load (red): tm.val.PWR_BUS_LOAD / 350 * W (below, separate bar)
+         - Labels: 'GENERATION' and 'LOAD' on left
+         - Height: 20px per bar, gap 4px
+
+Verification:
+  - ADI instrument tilts visibly when roll/pitch values change
+  - Battery gauge arc fills to correct SOC %
+  - Ground track shows Earth image background + satellite dot moving
+  - Orbit mini shows satellite going around Earth circle
+  - All canvases render without errors
+
+
+================================================================================
+PHASE 4 — HTML PANELS (TABLES, LISTS, STATUS ROWS)
+================================================================================
+Goal: Build all the HTML panel content: subsystem status rows, thermal table,
+payload panels, reaction wheel table, orbit parameters, upcoming passes,
+attitude alerts, and communications panel.
+
+Files changed: index.html (JavaScript section — init and update functions)
+
+Tasks:
+  4.1  initOverviewPage()  — called once at boot
+       Spacecraft Overview panel (#p-spacecraft):
+         Build 7 status rows (similar to current buildSubsysPanel):
+           BUS VOLTAGE, POWER OUTPUT, TEMPERATURE, ATTITUDE,
+           PROPULSION, SOLAR LOAD, PAYLOAD LOAD
+         Each row: colored dot (green=nom, yellow=warn, red=fault)
+                   + label + value span
+         CSS: rows are compact (24px each), dot glows with box-shadow
+
+       Thermal panel (#p-thermal):
+         Build rows for: OBC, BATTERY, PROPULSION, SOLAR ARRAY,
+           STRUCTURE, COOLING SYSTEM
+         Each row: label | value | status bar (mini colored rect)
+
+       Payload SHARKS panel (#p-sharks):
+         Shark icon (emoji 🦈 or ASCII art)
+         Rows: SHARK TANK TEMP, SHARK ACTIVITY %, BIOMETRIC COUPLING,
+               FEEDING STATUS
+
+       Payload LASERS panel (#p-lasers):
+         Laser icon (🔴 or ◈)
+         Rows: BORE-SIGHT ERROR, PHOTON OUTPUT, ALIGNMENT STATUS,
+               TRACKING MODE
+
+       Communications panel (#p-comms):
+         Signal gauge canvas (sig-gauge, 120×120)
+         Downlink section: RATE, CARRIER FREQ, MODULATION, BIT ERROR
+         Uplink section: RATE, CARRIER FREQ
+         Link schedule: next pass times (3 rows)
+
+  4.2  initAttitudePage()  — called once at boot
+       Orbit Parameters panel (#orbit-params-content):
+         Static label/value table:
+           EPOCH, SEMI-MAJOR AXIS (6778.1 km), ECCENTRICITY (0.000132),
+           INCLINATION (51.60°), RAAN, ARG PERIGEE, TRUE ANOMALY,
+           ALTITUDE, PERIOD (92.68 min)
+         RAAN and TRUE ANOMALY are live (update every tick)
+
+       Reaction Wheel Status table (#rw-content):
+         Header: WHEEL | RPM | SAT% | DUTY | STATUS
+         Rows: RW1, RW2, RW3, RW4
+         Color coding: green < 3000 RPM, yellow 3000–4500, red > 4500
+         Saturation% = |RPM| / 5000 * 100
+
+       Upcoming Passes (#passes-content):
+         Table: STATION | AOS | LOS | MAX EL
+         Pre-compute next 4 passes based on MET:
+           Goldstone at MET + variable minutes (cycle every 90 min)
+           Madrid ~30 min after Goldstone
+           Canberra ~60 min after Goldstone
+           Houston DSN ~8 min from now
+         Times shown as "HH:MM:SS" relative to current MET
+
+  4.3  updateOverviewPage(tm)  — called every tick
+         - Update spacecraft status dots: all NOMINAL unless fault active and
+           attitude error > 2° (then ADCS dot goes yellow) or > 5° (red)
+         - Update thermal table values with color: green if nominal,
+           yellow if +/- 5° from nominal, red if +/-10°
+         - Update payload values (sharks/lasers)
+         - Update signal gauge canvas
+         - Update power bar canvas
+         - Update batt gauge canvas
+         - Update attitude mini numbers (roll, pitch, yaw)
+         - Update orbit mini numbers (alt, inc, period, RAAN)
+         - Redraw orbit-mini-canvas
+         - Redraw groundtrack-canvas
+
+  4.4  updateAttitudePage(tm)  — called every tick
+         - Redraw adi-canvas
+         - Redraw orbit-shape-canvas
+         - Update orbit params table (RAAN, true anomaly, altitude live)
+         - Update RW table cell values + recolor
+         - Compute and refresh upcoming passes (shift times with MET)
+         - Update alerts list: render tm.events as colored rows
+           INFO=gray, WARN=yellow, CRITICAL=red, with MET timestamp
+         - Redraw alt-profile-canvas
+         - Redraw groundtrack2-canvas
+
+Verification:
+  - Spacecraft status dots are green at nominal; go yellow/red on fault
+  - Thermal values update live with correct colors
+  - RW table shows live RPM values, cells turn yellow post-fault
+  - Alerts panel stays empty at nominal; fires within ~30 s of fault injection
+  - Orbit params table updates RAAN and true anomaly every tick
+
+
+================================================================================
+PHASE 5 — STRIP CHARTS + WIRING
+================================================================================
+Goal: Wire up all strip charts on both pages, ensure all chart canvases are
+correctly sized, and verify smooth scrolling animated data on both pages.
+
+Files changed: index.html (chart init and animation loop)
+
+Tasks:
+  5.1  Keep StripChart class identical to current (no changes needed)
+
+  5.2  Attitude page charts  (initCharts)
+         ch-angles (attitude history):  roll/pitch/yaw  ±10° range
+           bands: yellow ±1–3°, red ±3–10°
+         ch-rates  (body rates):        ±0.5 °/s range
+         ch-rw     (reaction wheels):   -5000 to +6000 RPM
+         ch-power  (power):             0–350 W
+         ch-prop   (tank pressure):     275–320 psi
+         ch-flow   (thruster flows):    0–1.2 sccm
+
+  5.3  Overview page mini chart
+         att-mini-chart canvas in the Attitude & Orbit panel:
+           Small StripChart (roll only, last 60 s, no title margin)
+           Renders even when page-attitude is hidden
+
+  5.4  sizeCanvas  — update to handle all new canvas IDs
+         Size on boot:
+           sat-canvas, orbit-canvas, orbit-mini-canvas, orbit-shape-canvas
+           adi-canvas, groundtrack-canvas, groundtrack2-canvas
+           batt-gauge, sig-gauge, power-bar, alt-profile-canvas
+           ch-angles, ch-rates, ch-rw, ch-power, ch-prop, ch-flow, ch-me
+           att-mini-chart
+
+  5.5  Animation loop  — animate(now)
+         Accumulate dt → tick at 2 Hz (unchanged logic)
+         Page-aware rendering:
+           if activePage === 'overview':
+             satRenderer.render(...)
+             drawOrbitMini(...)
+             drawBattGauge(...), drawSignalGauge(...), drawPowerBar(...)
+             drawGroundTrack(groundtrack-canvas, ...)
+             updateOverviewPage(tm)
+             att-mini-chart.draw(tm)  [small strip chart]
+           if activePage === 'attitude':
+             orbitRenderer.render(...)  [3D orbit]
+             drawADI(...)
+             drawOrbitShape(...)
+             drawGroundTrack(groundtrack2-canvas, ...)
+             drawAltProfile(...)
+             ch-angles.draw(tm), ch-rates.draw(tm), ch-rw.draw(tm)
+             updateAttitudePage(tm)
+           Always:
+             updateHeader(tm)
+             advance orbitAngle, earthMesh.rotation.y
+             checkAlerts(tm)
+
+  5.6  Key handler
+         'F' / 'f' → tm.injectFault()  (unchanged)
+         Add visual flash: fault status badge in topbar turns red "FAULT"
+           when tm.faultActive is true
+
+  5.7  Boot sequence  (window.addEventListener('load', ...))
+         loadEarthImage()  ← returns Promise, await or .then chain
+         sizeCanvas for all canvas elements
+         initOverviewPage()
+         initAttitudePage()
+         initCharts()
+         initSatViewer()
+         initOrbitViewer()
+         Pre-fill 600 ticks of nominal history
+         requestAnimationFrame(animate)
+
+Verification:
+  - All strip charts scroll smoothly on attitude page
+  - Mini chart in overview scrolls with live roll data
+  - F key triggers fault; topbar badge turns red "FAULT"
+  - Body rates chart shows oscillation building within ~30 s
+  - Attitude history chart shows growing oscillation amplitude post-fault
+  - RW RPM chart shows RW1 drifting positive, RW3 drifting negative
+
+
+================================================================================
+PHASE 6 — POLISH + VALIDATION
+================================================================================
+Goal: Visual polish, edge cases, and full end-to-end test of all panels.
+
+Files changed: index.html (CSS tweaks, minor JS)
+
+Tasks:
+  6.1  Animate LIVE badges: CSS @keyframes pulse scales the green dot 1→1.3→1
+  6.2  Add subtle panel hover effect (border brightens slightly)
+  6.3  Status badge in topbar:
+         - Green "NOMINAL" text by default
+         - Orange "CAUTION" when any |attitude| > 1°
+         - Red "FAULT" when tm.faultActive
+  6.4  Topbar UTC clock updates every second using Date()
+  6.5  Next Pass countdown: compute from upcoming passes list, counts down in
+       real-time (MM:SS format)
+  6.6  Sidebar footer: show MET elapsed time matching header
+  6.7  Responsive: ensure no overflow at 1440×900 and 1920×1080
+  6.8  Panel scrollbars: where content might overflow, use overlay scrollbars
+  6.9  Fault injection visual feedback:
+         - Topbar badge → FAULT (red)
+         - ADCS status dot → yellow then red as error grows
+         - ADI horizon tilts noticeably after ~30 s
+         - Ground track satellite dot continues moving
+  6.10 Add 'R' key to reset fault (tm.faultActive = false + reset all _drift/_osc
+       state), re-display NOMINAL status
+
+Verification — full end-to-end test:
+  1. python3 -m http.server 8080 in project directory
+  2. Open http://localhost:8080/index.html at 1440px wide
+  3. Sidebar: click OVERVIEW — confirms Overview page active
+     [ ] Spacecraft Overview panel: Hubble 3D rotating, status dots all green
+     [ ] Attitude & Orbit mini: earth circle + satellite dot moving, live angles
+     [ ] Power: battery gauge at ~82%, power bar shows solar > load
+     [ ] Thermal: all temps within nominal range, no red values
+     [ ] Payload SHARKS: live temp/activity updating
+     [ ] Payload LASERS: alignment ~0.003 mdeg, photon output ~847 mW
+     [ ] Communications: signal gauge ~75%, downlink 4.096 Mbps
+     [ ] Ground Track: Earth image bg + satellite dot moving + stations visible
+  4. Click ATTITUDE & ORBIT in sidebar — confirms page switch
+     [ ] ADI: horizon stable, near-zero roll/pitch
+     [ ] Orbit Visualization: 3D Earth + inclined orbit ring + satellite dot
+     [ ] Orbit Parameters: all values present, true anomaly ticking
+     [ ] Orbit Shape: 2D ellipse with Earth circle
+     [ ] Attitude History: 3 colored lines, flat near zero
+     [ ] RW Status table: 4 wheels, all values updating, all green
+     [ ] Upcoming Passes: 4 rows with future times
+     [ ] Ground Track 2: same Earth + track rendering
+     [ ] Altitude Profile: flat strip near 408 km
+     [ ] Attitude Alerts: empty list (nominal ops)
+  5. Press F (fault injection)
+     [ ] Topbar badge turns red "FAULT"
+     [ ] ADI horizon begins tilting within ~20 s
+     [ ] Attitude History: oscillations growing from ~30 s
+     [ ] RW1 RPM drifting up, RW3 drifting down (yellow cell → red eventually)
+     [ ] Altitude Profile: unchanged (orbital mechanics not affected by RCS)
+     [ ] Attitude Alerts: first WARN/INFO entries appear ~30 s post-fault
+     [ ] Laser alignment drifts up on overview LASERS panel
+     [ ] ADCS status dot on overview turns yellow then red
+  6. Verify no JavaScript console errors at any point
+  7. Verify Earth_Blue_Marble.jpg loads in ground track background
+  8. Verify Hubble.glb loads (not procedural fallback)
+
+
+================================================================================
+IMPLEMENTATION ORDER SUMMARY
+================================================================================
+
+Phase 1: Shell + CSS + Grid Layout          (~200 lines)
+Phase 2: JS Engine extensions + Three.js    (~300 lines)
+Phase 3: 2D Canvas Instruments              (~350 lines)
+Phase 4: HTML Panels + Update Functions     (~300 lines)
+Phase 5: Strip Charts + Animation Loop      (~200 lines)
+Phase 6: Polish + Full Validation           (~100 lines)
+
+TOTAL: ~1,450 lines of clean, single-file HTML/CSS/JS
+
+Each phase can be tested independently before moving to the next.
+The existing TelemetryEngine fault physics are preserved 100% unchanged.
+No external dependencies added beyond existing Three.js CDN.
+
+================================================================================
+END OF PLAN
+================================================================================

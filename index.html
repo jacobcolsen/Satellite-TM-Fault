@@ -3,936 +3,1254 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=1440">
-<title>HELIOS-7 — Spacecraft Operations Center</title>
+<title>SSL-1 — Spacecraft Operations Center</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#030310;--panel-bg:#07071a;--panel-border:#0d2244;
-  --hdr-bg:#040418;--hdr-border:#0a1e3c;
-  --text-bright:#cce8ff;--text-green:#00e87a;--text-cyan:#00d8ff;
-  --text-label:#3a6080;--text-dim:#1e3050;--text-orange:#ff9040;
-  --title-color:#1e5080;--nom-green:#00cc66;
-  --font:monospace;
-}
-html,body{width:100%;background:var(--bg);color:var(--text-bright);font-family:var(--font);font-size:12px;overflow-x:hidden}
+/* ═══════════════════════════════════════════════════════════════
+   RESET + CSS VARIABLES
+═══════════════════════════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
-/* ── HEADER ─────────────────────────────────────────────────── */
-#header{
-  display:flex;align-items:center;justify-content:space-between;
-  background:var(--hdr-bg);border-bottom:1px solid var(--hdr-border);
-  padding:0 16px;height:48px;position:sticky;top:0;z-index:100;
-}
-#sc-name{font-size:18px;font-weight:bold;color:var(--text-cyan);letter-spacing:3px}
-#sc-subtitle{font-size:10px;color:var(--text-label);margin-left:10px;letter-spacing:2px}
-#header-center{display:flex;gap:24px}
-.hdr-item{color:var(--text-label);font-size:10px;letter-spacing:1px}
-.hdr-item span{color:var(--text-green);font-size:12px}
-#met{font-size:14px !important;font-weight:bold;letter-spacing:2px}
-#key-hint{font-size:9px;color:#1a2a40;letter-spacing:1px;cursor:default;user-select:none}
+:root {
+  /* Backgrounds */
+  --bg:           #07081c;
+  --sidebar-bg:   #05060f;
+  --panel-bg:     #0b1127;
+  --panel-header: #080e20;
+  --topbar-bg:    #080a1c;
 
-/* ── TOP ROW ──────────────────────────────────────────────────*/
-#top-row{
-  display:flex;height:340px;border-bottom:1px solid var(--panel-border);
+  /* Borders */
+  --panel-border: #172c4f;
+  --panel-border-dim: #0e1e36;
+
+  /* Text */
+  --text-primary: #c8d8ec;
+  --text-dim:     #3a5570;
+  --text-label:   #2e4460;
+  --text-mono:    #7aa8cc;
+
+  /* Accents */
+  --accent-cyan:   #00c8f0;
+  --accent-green:  #00de78;
+  --accent-yellow: #ffc800;
+  --accent-orange: #ff8c40;
+  --accent-red:    #ff3c3c;
+  --accent-blue:   #4488ff;
+
+  /* Status */
+  --status-nom:  #00de78;
+  --status-warn: #ffc800;
+  --status-crit: #ff3c3c;
+
+  /* Typography */
+  --font-ui:   'Inter','Segoe UI',Arial,sans-serif;
+  --font-mono: 'JetBrains Mono','Courier New',Courier,monospace;
 }
-.top-panel{
+
+html,body {
+  width:100%; height:100%;
+  overflow:hidden;
+  background:var(--bg);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  font-size:13px;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROOT LAYOUT  — sidebar + app column
+═══════════════════════════════════════════════════════════════ */
+body { display:flex; }
+
+#sidebar {
+  width:162px; flex-shrink:0;
+  height:100vh;
+  background:var(--sidebar-bg);
   border-right:1px solid var(--panel-border);
-  display:flex;flex-direction:column;overflow:hidden;
+  display:flex; flex-direction:column;
+  z-index:200; overflow:hidden;
 }
-#sat-panel{flex:0 0 42%}
-#orbit-panel{flex:0 0 30%}
-#status-panel{flex:1;min-width:0}
-.panel-title{
-  height:22px;line-height:22px;padding:0 8px;
-  font-size:9px;letter-spacing:2px;color:var(--title-color);
-  background:#050520;border-bottom:1px solid var(--panel-border);
+
+#app {
+  flex:1; min-width:0;
+  height:100vh;
+  display:flex; flex-direction:column;
+  overflow:hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════════════ */
+#sidebar-logo {
+  padding:14px 12px 12px;
+  border-bottom:1px solid var(--panel-border);
+  display:flex; flex-direction:column; align-items:center; gap:5px;
+}
+
+.sl-icon {
+  font-size:26px;
+  line-height:1;
+  filter:hue-rotate(190deg) brightness(1.1);
+}
+
+.sl-name {
+  font-family:var(--font-ui);
+  font-size:16px; font-weight:700;
+  letter-spacing:3px;
+  color:var(--accent-cyan);
+  line-height:1;
+}
+
+.sl-sub {
+  font-size:8px; letter-spacing:1.2px;
+  color:var(--text-dim); text-align:center;
+  text-transform:uppercase; line-height:1.5;
+}
+
+/* Nav list */
+#nav-list {
+  list-style:none; flex:1;
+  overflow-y:auto; padding:8px 0;
+}
+#nav-list::-webkit-scrollbar{width:3px}
+#nav-list::-webkit-scrollbar-thumb{background:var(--panel-border)}
+
+.nav-item {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 14px;
+  border-left:3px solid transparent;
+  cursor:pointer;
+  transition:background 0.12s, border-color 0.12s, color 0.12s;
+  user-select:none;
+}
+.nav-item:hover:not(.nav-stub){
+  background:rgba(0,200,240,0.06);
+  border-left-color:rgba(0,200,240,0.3);
+  color:var(--text-primary);
+}
+.nav-item.active {
+  border-left-color:var(--accent-cyan);
+  background:rgba(0,200,240,0.09);
+  color:var(--accent-cyan);
+}
+.nav-item.nav-stub {
+  cursor:default; opacity:0.35;
+}
+
+.nav-icon {
+  font-size:13px; width:15px;
+  text-align:center; flex-shrink:0;
+}
+.nav-label {
+  font-size:10px; letter-spacing:1.5px;
+  text-transform:uppercase; color:inherit;
+}
+.nav-item:not(.active) .nav-label { color:var(--text-dim); }
+.nav-item:hover:not(.nav-stub) .nav-label { color:var(--text-primary); }
+
+/* Sidebar footer */
+#sidebar-footer {
+  padding:10px 14px;
+  border-top:1px solid var(--panel-border);
+  font-family:var(--font-mono);
+}
+.sf-row { font-size:10px; letter-spacing:1px; line-height:1.9; }
+.sf-dim  { color:var(--text-dim); }
+.sf-met  { color:var(--accent-cyan); }
+
+/* ═══════════════════════════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════════════════════════ */
+#topbar {
+  height:48px; flex-shrink:0;
+  background:var(--topbar-bg);
+  border-bottom:1px solid var(--panel-border);
+  display:flex; align-items:center;
+  padding:0 14px; gap:0; z-index:100;
+}
+
+#tb-left {
+  display:flex; align-items:center; gap:10px;
+  padding-right:16px;
+  border-right:1px solid var(--panel-border);
+}
+
+#tb-sc-icon { font-size:22px; filter:hue-rotate(190deg) brightness(1.1); }
+
+#tb-sc-name { display:flex; flex-direction:column; }
+#tb-name {
+  font-size:14px; font-weight:700;
+  letter-spacing:3px; color:var(--accent-cyan); line-height:1.1;
+}
+#tb-sub {
+  font-size:8.5px; letter-spacing:1.5px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+
+#sys-status {
+  padding:3px 9px; border-radius:3px;
+  font-size:10px; font-weight:700; letter-spacing:2px;
+  border:1px solid; transition:all 0.3s;
+}
+#sys-status.s-nom  { color:var(--status-nom);  border-color:var(--status-nom);  background:rgba(0,222,120,0.08); }
+#sys-status.s-warn { color:var(--status-warn); border-color:var(--status-warn); background:rgba(255,200,0,0.08); }
+#sys-status.s-crit { color:var(--status-crit); border-color:var(--status-crit); background:rgba(255,60,60,0.10); }
+
+#tb-center {
+  display:flex; align-items:center; gap:0;
+  flex:1; padding:0 14px;
+}
+.tb-item { display:flex; flex-direction:column; padding:0 14px; }
+.tb-label {
+  font-size:8.5px; letter-spacing:1.5px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.tb-val {
+  font-family:var(--font-mono);
+  font-size:13px; font-weight:600;
+  color:var(--accent-cyan); letter-spacing:0.5px; line-height:1.4;
+}
+.tb-sep {
+  width:1px; height:28px;
+  background:var(--panel-border); flex-shrink:0;
+}
+
+#tb-right {
+  display:flex; align-items:center; gap:8px;
+  padding-left:14px;
+  border-left:1px solid var(--panel-border);
+}
+.tb-btn {
+  padding:4px 11px;
+  background:transparent;
+  border:1px solid var(--panel-border);
+  border-radius:3px;
+  color:var(--text-dim);
+  font-size:9.5px; letter-spacing:1.5px;
+  cursor:pointer; font-family:var(--font-ui);
+  text-transform:uppercase;
+  transition:all 0.15s;
+}
+.tb-btn:hover {
+  border-color:var(--accent-cyan);
+  color:var(--accent-cyan);
+  background:rgba(0,200,240,0.06);
+}
+.tb-btn-fault {
+  border-color:rgba(255,140,64,0.5);
+  color:var(--accent-orange);
+}
+.tb-btn-fault:hover {
+  border-color:var(--accent-orange);
+  background:rgba(255,140,64,0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CONTENT + PAGES
+═══════════════════════════════════════════════════════════════ */
+#content {
+  flex:1; min-height:0;
+  overflow:hidden; position:relative;
+}
+.page {
+  position:absolute; inset:0;
+  overflow:hidden;
+}
+.page.hidden { display:none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PANEL COMPONENT
+═══════════════════════════════════════════════════════════════ */
+.panel {
+  background:var(--panel-bg);
+  border:1px solid var(--panel-border);
+  border-radius:4px;
+  display:flex; flex-direction:column;
+  overflow:hidden; min-height:0;
+}
+.panel:hover { border-color:#223d62; }
+
+.ph {
+  height:26px; padding:0 10px;
+  background:var(--panel-header);
+  border-bottom:1px solid var(--panel-border);
+  display:flex; align-items:center; justify-content:space-between;
   flex-shrink:0;
 }
-#sat-canvas,#orbit-canvas{width:100%;flex:1;display:block}
+.ph-title {
+  font-size:9.5px; letter-spacing:2px;
+  color:var(--text-dim); text-transform:uppercase; font-weight:500;
+}
+.ph-sub {
+  font-size:8.5px; letter-spacing:1px;
+  color:var(--text-label);
+  font-family:var(--font-mono);
+}
 
-/* ── SUBSYSTEM STATUS PANEL ───────────────────────────────────*/
-#subsys-list{padding:6px 0;overflow-y:auto;flex:1}
-.subsys-row{
-  display:flex;align-items:baseline;padding:4px 10px;
-  border-bottom:1px solid #0a1428;
+/* LIVE badge */
+.live-badge {
+  display:flex; align-items:center; gap:5px;
+  font-size:8.5px; letter-spacing:1.5px;
+  color:var(--accent-green); font-weight:700;
 }
-.subsys-name{width:90px;font-size:10px;letter-spacing:1px;color:var(--text-label)}
-.subsys-dot{width:10px;height:10px;border-radius:50%;background:var(--nom-green);
-  flex-shrink:0;margin-right:6px;box-shadow:0 0 6px var(--nom-green)}
-.subsys-status{font-size:9px;color:var(--nom-green);width:60px}
-.subsys-vals{flex:1;font-size:9px;color:#2a5070;line-height:1.6}
-.subsys-val-row{display:flex;gap:8px}
-.sv-label{color:var(--text-dim)}
-.sv-val{color:var(--text-green)}
+.live-badge::before {
+  content:'';
+  display:inline-block;
+  width:6px; height:6px; border-radius:50%;
+  background:var(--accent-green);
+  box-shadow:0 0 6px var(--accent-green);
+  animation:livepulse 2.2s ease-in-out infinite;
+}
+@keyframes livepulse {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.35;transform:scale(1.4)}
+}
 
-/* ── CHARTS ───────────────────────────────────────────────────*/
-.charts-row{display:flex;border-bottom:1px solid var(--panel-border)}
-.chart-wrap{
-  flex:1;border-right:1px solid var(--panel-border);
-  display:flex;flex-direction:column;min-width:0;
+.pb {
+  flex:1; min-height:0;
+  overflow:hidden; position:relative;
 }
-.chart-title{
-  height:20px;line-height:20px;padding:0 8px;
-  font-size:9px;letter-spacing:2px;color:var(--title-color);
-  background:#050520;border-bottom:1px solid var(--panel-border);
-  flex-shrink:0;
-}
-.chart-canvas{width:100%;height:140px;display:block;flex-shrink:0}
 
-/* ── PAYLOAD PANEL ────────────────────────────────────────────*/
-#payload-panel{flex:0 0 25%}
-#payload-content{
-  padding:8px;flex:1;font-size:10px;line-height:1.8;
+/* ═══════════════════════════════════════════════════════════════
+   OVERVIEW GRID
+═══════════════════════════════════════════════════════════════ */
+.ov-grid {
+  width:100%; height:100%;
+  display:grid;
+  grid-template-columns: 1.1fr 1.65fr 1fr;
+  grid-template-rows: 3fr 2fr 1.45fr;
+  grid-template-areas:
+    "spacecraft  attitude    power"
+    "thermal     payloads    comms"
+    "groundtrack groundtrack groundtrack";
+  gap:3px; padding:3px; box-sizing:border-box;
+  background:var(--bg);
 }
-.pld-row{display:flex;justify-content:space-between;border-bottom:1px solid #08122a;padding:2px 0}
-.pld-label{color:var(--text-label);letter-spacing:1px}
-.pld-val{color:var(--text-green)}
-.pld-badge{font-size:8px;padding:1px 5px;border-radius:2px;background:#001a0a;color:var(--nom-green);border:1px solid #003318}
-#pld-class{font-size:8px;color:#1a3020;padding:4px 0;letter-spacing:1px;margin-bottom:4px}
+
+.ov-spacecraft  { grid-area:spacecraft; }
+.ov-attitude    { grid-area:attitude; }
+.ov-power       { grid-area:power; }
+.ov-thermal     { grid-area:thermal; }
+.ov-payloads    { grid-area:payloads; display:flex; gap:3px; }
+.ov-payloads>.panel { flex:1; }
+.ov-comms       { grid-area:comms; }
+.ov-groundtrack { grid-area:groundtrack; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ATTITUDE PAGE GRID
+═══════════════════════════════════════════════════════════════ */
+.att-grid {
+  width:100%; height:100%;
+  display:grid;
+  grid-template-columns: 1.1fr 1.5fr 1.1fr 0.95fr;
+  grid-template-rows: 2fr 2fr 1.8fr;
+  grid-template-areas:
+    "adi          orbit-viz    orbit-params  orbit-shape"
+    "att-history  att-history  rw-status     passes"
+    "groundtrack2 alt-profile  att-alerts    att-alerts";
+  gap:3px; padding:3px; box-sizing:border-box;
+  background:var(--bg);
+}
+
+.att-adi          { grid-area:adi; }
+.att-orbit-viz    { grid-area:orbit-viz; }
+.att-orbit-params { grid-area:orbit-params; }
+.att-orbit-shape  { grid-area:orbit-shape; }
+.att-att-history  { grid-area:att-history; }
+.att-rw-status    { grid-area:rw-status; }
+.att-passes       { grid-area:passes; }
+.att-groundtrack2 { grid-area:groundtrack2; }
+.att-alt-profile  { grid-area:alt-profile; }
+.att-att-alerts   { grid-area:att-alerts; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SHARED PANEL CONTENT STYLES
+═══════════════════════════════════════════════════════════════ */
+
+/* Status rows (spacecraft overview + subsystems) */
+.sc-body {
+  display:flex; flex:1; min-height:0; overflow:hidden;
+}
+#sat-canvas {
+  flex:0 0 56%; height:100%; display:block;
+}
+#sc-status-list {
+  flex:1; padding:6px 8px; overflow-y:auto;
+}
+#sc-status-list::-webkit-scrollbar{width:3px}
+#sc-status-list::-webkit-scrollbar-thumb{background:var(--panel-border)}
+
+.sc-row {
+  display:flex; align-items:center; gap:7px;
+  padding:5px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.sc-dot {
+  width:7px; height:7px; border-radius:50%; flex-shrink:0;
+}
+.sc-dot.nom  { background:var(--status-nom);  box-shadow:0 0 5px var(--status-nom); }
+.sc-dot.warn { background:var(--status-warn); box-shadow:0 0 5px var(--status-warn); }
+.sc-dot.crit { background:var(--status-crit); box-shadow:0 0 5px var(--status-crit); }
+.sc-label {
+  flex:1; font-size:9.5px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.sc-val {
+  font-family:var(--font-mono);
+  font-size:10px; color:var(--text-mono);
+}
+.sc-badge {
+  font-size:9px; letter-spacing:1px; font-weight:700;
+}
+.sc-badge.nom  { color:var(--status-nom); }
+.sc-badge.warn { color:var(--status-warn); }
+.sc-badge.crit { color:var(--status-crit); }
+
+/* Attitude mini panel (overview) */
+.att-mini-body {
+  display:flex; flex:1; min-height:0; overflow:hidden; gap:0;
+}
+.att-mini-left {
+  flex:0 0 44%; display:flex; flex-direction:column;
+  border-right:1px solid var(--panel-border-dim);
+}
+#orbit-mini-canvas {
+  flex:1; min-height:0; display:block; width:100%;
+}
+.att-mini-params {
+  padding:5px 8px; font-family:var(--font-mono); font-size:10px;
+  border-top:1px solid var(--panel-border-dim);
+}
+.amp-row {
+  display:flex; justify-content:space-between;
+  padding:2px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.amp-l { color:var(--text-dim); font-size:9px; letter-spacing:1px; }
+.amp-v { color:var(--accent-cyan); }
+
+.att-mini-right {
+  flex:1; display:flex; flex-direction:column; padding:8px 10px; gap:6px;
+}
+.att-angles { display:flex; flex-direction:column; gap:3px; }
+.aa-row {
+  display:flex; align-items:baseline; gap:6px;
+  padding:3px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.aa-l {
+  width:36px; font-size:9px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.aa-v {
+  font-family:var(--font-mono); font-size:13px;
+  font-weight:600; color:var(--text-primary);
+}
+.aa-unit { font-size:9px; color:var(--text-dim); }
+#att-mini-chart { width:100%; flex:1; min-height:0; display:block; }
+
+/* Power panel */
+.power-body {
+  padding:10px; display:flex; flex-direction:column; gap:8px;
+  flex:1; min-height:0;
+}
+.power-gauge-row {
+  display:flex; align-items:center; gap:12px;
+}
+#batt-gauge { flex-shrink:0; }
+.power-stats { flex:1; }
+.ps-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:3px 0; border-bottom:1px solid var(--panel-border-dim);
+  font-size:11px;
+}
+.ps-l { color:var(--text-dim); font-size:9.5px; letter-spacing:1px; text-transform:uppercase; }
+.ps-v { font-family:var(--font-mono); color:var(--text-mono); font-size:11px; }
+.ps-v.green { color:var(--status-nom); font-weight:700; letter-spacing:1px; }
+.ps-v.yellow{ color:var(--status-warn); font-weight:700; }
+.power-bar-wrap { flex-shrink:0; }
+#power-bar { width:100%; display:block; }
+
+/* Thermal panel */
+.therm-body {
+  padding:8px; flex:1; min-height:0; overflow-y:auto; font-size:11px;
+}
+.therm-body::-webkit-scrollbar{width:3px}
+.therm-body::-webkit-scrollbar-thumb{background:var(--panel-border)}
+.therm-row {
+  display:flex; align-items:center; gap:6px;
+  padding:5px 4px; border-bottom:1px solid var(--panel-border-dim);
+}
+.therm-name {
+  flex:0 0 100px; font-size:9.5px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.therm-val {
+  flex:0 0 65px; font-family:var(--font-mono);
+  font-size:12px; font-weight:600;
+}
+.therm-val.green  { color:var(--status-nom); }
+.therm-val.yellow { color:var(--status-warn); }
+.therm-val.red    { color:var(--status-crit); }
+.therm-bar {
+  flex:1; height:4px; border-radius:2px;
+  background:var(--panel-border-dim); overflow:hidden;
+}
+.therm-bar-fill { height:100%; border-radius:2px; transition:width 0.5s; }
+
+/* Payload panels */
+.pld-body {
+  padding:8px 10px; flex:1; min-height:0; overflow-y:auto; font-size:11px;
+}
+.pld-icon { font-size:28px; margin-bottom:6px; display:block; }
+.pld-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:4px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.pld-l {
+  font-size:9px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.pld-v { font-family:var(--font-mono); font-size:11px; color:var(--text-mono); }
+.pld-badge {
+  font-size:8.5px; font-weight:700; letter-spacing:1px;
+  padding:1px 6px; border-radius:2px; border:1px solid;
+}
+.pld-badge.eng  { color:var(--status-nom);  border-color:var(--status-nom);  background:rgba(0,222,120,0.07); }
+.pld-badge.warn { color:var(--status-warn); border-color:var(--status-warn); background:rgba(255,200,0,0.07); }
+
+/* Communications panel */
+.comms-body {
+  padding:8px 10px; flex:1; min-height:0; overflow-y:auto;
+}
+.comms-gauge-wrap {
+  display:flex; align-items:center; justify-content:center;
+  padding:6px 0;
+}
+#sig-gauge { display:block; }
+.comms-section { margin-top:6px; }
+.comms-section-title {
+  font-size:9px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--text-label); border-bottom:1px solid var(--panel-border-dim);
+  padding-bottom:3px; margin-bottom:4px;
+}
+.comms-row {
+  display:flex; justify-content:space-between;
+  padding:3px 0; font-size:10px;
+}
+.comms-l { color:var(--text-dim); letter-spacing:1px; font-size:9px; text-transform:uppercase; }
+.comms-v { font-family:var(--font-mono); color:var(--text-mono); font-size:10px; }
+.comms-v.on  { color:var(--status-nom); font-weight:700; }
+.comms-v.off { color:var(--text-label); }
+
+/* Ground track */
+.ov-groundtrack .pb { display:flex; }
+#groundtrack-canvas  { width:100%; height:100%; display:block; flex:1; }
+#groundtrack2-canvas { width:100%; height:100%; display:block; flex:1; }
+
+/* ADI panel */
+.adi-body {
+  display:flex; flex-direction:column; align-items:center;
+  padding:8px; flex:1; min-height:0; overflow:hidden; gap:6px;
+}
+#adi-canvas { flex-shrink:0; display:block; }
+.adi-vals { width:100%; }
+.av-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:3px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.av-l {
+  font-size:9px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.av-v { font-family:var(--font-mono); font-size:11px; color:var(--text-primary); }
+.quat-disp {
+  font-family:var(--font-mono); font-size:9px;
+  color:var(--text-dim); padding-top:3px; letter-spacing:0.5px;
+}
+
+/* Orbit visualization canvas */
+.att-orbit-viz .pb { display:flex; }
+#orbit-canvas { width:100%; height:100%; display:block; flex:1; }
+
+/* Orbit parameters */
+.orb-params-body {
+  padding:8px 10px; flex:1; min-height:0; overflow-y:auto; font-size:11px;
+}
+.orb-params-body::-webkit-scrollbar{width:3px}
+.op-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:4px 0; border-bottom:1px solid var(--panel-border-dim);
+}
+.op-l {
+  font-size:9px; letter-spacing:1px;
+  color:var(--text-dim); text-transform:uppercase;
+}
+.op-v {
+  font-family:var(--font-mono); font-size:11px;
+  color:var(--accent-cyan); font-weight:600;
+}
+
+/* Orbit shape */
+.att-orbit-shape .pb { display:flex; align-items:center; justify-content:center; }
+#orbit-shape-canvas { display:block; }
+
+/* Attitude history strip */
+.att-att-history .pb { display:flex; }
+#ch-angles { width:100%; height:100%; display:block; flex:1; }
+
+/* Reaction wheels table */
+.rw-body {
+  padding:6px; flex:1; min-height:0; overflow-y:auto;
+}
+.rw-table {
+  width:100%; border-collapse:collapse; font-size:11px;
+}
+.rw-table th {
+  font-size:8.5px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--text-dim); padding:4px 6px;
+  border-bottom:1px solid var(--panel-border); text-align:left;
+  font-weight:500;
+}
+.rw-table td {
+  padding:5px 6px; border-bottom:1px solid var(--panel-border-dim);
+  font-family:var(--font-mono); font-size:11px;
+}
+.rw-table td.rw-name { color:var(--text-dim); font-size:10px; letter-spacing:1px; }
+.rw-table td.green  { color:var(--status-nom); }
+.rw-table td.yellow { color:var(--status-warn); }
+.rw-table td.red    { color:var(--status-crit); }
+
+/* Passes table */
+.passes-body {
+  padding:6px; flex:1; min-height:0; overflow-y:auto;
+}
+.pass-row {
+  display:flex; flex-direction:column;
+  padding:6px 8px; margin-bottom:4px;
+  background:rgba(0,200,240,0.04);
+  border:1px solid var(--panel-border-dim);
+  border-radius:3px; gap:3px;
+}
+.pass-sta {
+  font-size:10px; font-weight:700; letter-spacing:1.5px;
+  color:var(--accent-cyan);
+}
+.pass-times {
+  display:flex; gap:12px; font-family:var(--font-mono); font-size:10px;
+}
+.pass-t-l { font-size:8.5px; color:var(--text-dim); letter-spacing:1px; }
+.pass-t-v { color:var(--text-primary); }
+.pass-el {
+  font-size:9px; color:var(--status-nom); letter-spacing:1px; font-weight:600;
+}
+
+/* Altitude profile canvas */
+.att-alt-profile .pb { display:flex; }
+#alt-profile-canvas { width:100%; height:100%; display:block; flex:1; }
+
+/* Attitude alerts */
+.alerts-body {
+  padding:6px; flex:1; min-height:0; overflow-y:auto;
+}
+.alerts-body::-webkit-scrollbar{width:3px}
+.alerts-body::-webkit-scrollbar-thumb{background:var(--panel-border)}
+.alert-row {
+  display:flex; align-items:flex-start; gap:8px;
+  padding:5px 7px; margin-bottom:3px;
+  border-radius:3px; border-left:3px solid;
+  background:rgba(0,0,0,0.2);
+}
+.alert-row.info  { border-left-color:var(--text-dim); }
+.alert-row.warn  { border-left-color:var(--status-warn); background:rgba(255,200,0,0.05); }
+.alert-row.crit  { border-left-color:var(--status-crit); background:rgba(255,60,60,0.07); }
+.alert-type {
+  font-size:8.5px; font-weight:700; letter-spacing:1px; flex-shrink:0; min-width:44px;
+}
+.alert-row.info  .alert-type { color:var(--text-dim); }
+.alert-row.warn  .alert-type { color:var(--status-warn); }
+.alert-row.crit  .alert-type { color:var(--status-crit); }
+.alert-met {
+  font-family:var(--font-mono); font-size:9px;
+  color:var(--text-dim); flex-shrink:0;
+}
+.alert-msg { font-size:10px; color:var(--text-primary); line-height:1.4; }
+.alert-empty {
+  padding:16px 10px; text-align:center;
+  font-size:10px; letter-spacing:1.5px;
+  color:var(--text-label); text-transform:uppercase;
+}
+
+/* Scrollbars global */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--panel-border); border-radius:2px; }
+
+/* Canvas fills panel body when it is the direct child */
+.pb > canvas { width:100% !important; height:100% !important; display:block; }
+
 </style>
 </head>
 <body>
 
-<!-- ═══ HEADER ═══════════════════════════════════════════════════ -->
-<div id="header">
-  <div style="display:flex;align-items:baseline;gap:4px">
-    <span id="sc-name">HELIOS-7</span>
-    <span id="sc-subtitle">LEO-SCIENCE-01 // UNCLASSIFIED</span>
+<!-- ═══════════════════════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div id="sidebar-logo">
+    <span class="sl-icon">🛰️</span>
+    <div class="sl-name">SSL-1</div>
+    <div class="sl-sub">SHARES WITH<br>LASER SATELLITE</div>
   </div>
-  <div id="header-center">
-    <div class="hdr-item">MET&nbsp;<span id="met">000:00:00</span></div>
-    <div class="hdr-item">ORB&nbsp;<span id="orb-count">0142</span></div>
-    <div class="hdr-item">GND&nbsp;<span id="contact-sta">AOS GOLDSTONE</span></div>
-    <div class="hdr-item">MODE&nbsp;<span id="sc-mode">FINE POINTING</span></div>
-    <div class="hdr-item">LINK&nbsp;<span id="link-rate">4.096 Mbps</span></div>
+
+  <ul id="nav-list">
+    <li class="nav-item active" data-page="overview">
+      <span class="nav-icon">⊞</span>
+      <span class="nav-label">Overview</span>
+    </li>
+    <li class="nav-item" data-page="attitude">
+      <span class="nav-icon">⊕</span>
+      <span class="nav-label">Attitude &amp; Orbit</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-label">Power</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">◈</span>
+      <span class="nav-label">Thermal</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">◊</span>
+      <span class="nav-label">Propulsion</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">◉</span>
+      <span class="nav-label">Communications</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">≡</span>
+      <span class="nav-label">Data</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">☰</span>
+      <span class="nav-label">Event Log</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">⊡</span>
+      <span class="nav-label">Commanded</span>
+    </li>
+    <li class="nav-item nav-stub">
+      <span class="nav-icon">⚙</span>
+      <span class="nav-label">Settings</span>
+    </li>
+  </ul>
+
+  <div id="sidebar-footer">
+    <div class="sf-row">SSL-1</div>
+    <div class="sf-row sf-dim">FW v2.4.1</div>
+    <div class="sf-row sf-met" id="sb-met">MET 000:00:00</div>
   </div>
-  <div><span id="key-hint">[ F ] FAULT INJ</span></div>
-</div>
-
-<!-- ═══ TOP ROW ═══════════════════════════════════════════════════ -->
-<div id="top-row">
-  <div id="sat-panel" class="top-panel">
-    <div class="panel-title">3D ATTITUDE VIEW — HELIOS-7</div>
-    <canvas id="sat-canvas"></canvas>
-  </div>
-  <div id="orbit-panel" class="top-panel">
-    <div class="panel-title">LEO GROUND TRACK — ALT 408 km  INC 51.6°</div>
-    <canvas id="orbit-canvas"></canvas>
-  </div>
-  <div id="status-panel" class="top-panel">
-    <div class="panel-title">SUBSYSTEM HEALTH SUMMARY</div>
-    <div id="subsys-list"></div>
-  </div>
-</div>
-
-<!-- ═══ CHART ROW 1 ═══════════════════════════════════════════════ -->
-<div class="charts-row" id="row1">
-  <div class="chart-wrap">
-    <div class="chart-title">ATTITUDE — EULER ANGLES  (deg)</div>
-    <canvas id="ch-angles" class="chart-canvas"></canvas>
-  </div>
-  <div class="chart-wrap">
-    <div class="chart-title">ATTITUDE — BODY RATES  (deg/s)</div>
-    <canvas id="ch-rates" class="chart-canvas"></canvas>
-  </div>
-  <div class="chart-wrap">
-    <div class="chart-title">POWER SYSTEM  (W)</div>
-    <canvas id="ch-power" class="chart-canvas"></canvas>
-  </div>
-  <div class="chart-wrap">
-    <div class="chart-title">PROPULSION — TANK PRESSURE &amp; MASS</div>
-    <canvas id="ch-prop" class="chart-canvas"></canvas>
-  </div>
-</div>
-
-<!-- ═══ CHART ROW 2 ═══════════════════════════════════════════════ -->
-<div class="charts-row" id="row2">
-  <div class="chart-wrap">
-    <div class="chart-title">REACTION WHEELS  (RPM)</div>
-    <canvas id="ch-rw" class="chart-canvas"></canvas>
-  </div>
-  <div class="chart-wrap">
-    <div class="chart-title">THRUSTER VALVE FLOW RATES  (sccm)</div>
-    <canvas id="ch-flow" class="chart-canvas"></canvas>
-  </div>
-  <div class="chart-wrap">
-    <div class="chart-title">THERMAL  (°C)</div>
-    <canvas id="ch-therm" class="chart-canvas"></canvas>
-  </div>
-  <div id="payload-panel" class="chart-wrap">
-    <div class="chart-title">EDEP-1 // EXPERIMENTAL DIRECTED-ENERGY PAYLOAD</div>
-    <div id="payload-content"></div>
-  </div>
-</div>
-
-<!-- ═══ THREE.JS + TELEMETRY ══════════════════════════════════════ -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-// ═══════════════════════════════════════════════════════════════
-// TELEMETRY ENGINE
-// ═══════════════════════════════════════════════════════════════
-class TelemetryEngine {
-  constructor() {
-    this.missionElapsed = 0;
-    this.faultActive    = false;
-    this.faultElapsed   = 0;
-    this.HZ             = 2;           // update rate
-    this.HISTORY        = 240;         // 120 seconds at 2 Hz
-
-    this.nom = {
-      ATT_ROLL:0.0,   ATT_PITCH:0.0,   ATT_YAW:0.0,
-      ATT_ROLLRATE:0, ATT_PITCHRATE:0, ATT_YAWRATE:0,
-      RW1_SPEED:3240, RW2_SPEED:-2810, RW3_SPEED:1950, RW4_SPEED:4100,
-      PWR_SOLAR_A:148.2, PWR_SOLAR_B:151.7,
-      PWR_BATT_SOC:82.4, PWR_BATT_V:28.14,
-      PWR_ADCS_DRAW:34.2, PWR_BUS_LOAD:198.4,
-      PROP_TANK_PRESS:312.4, PROP_TANK_TEMP:18.7,
-      PROP_MASS:24.820,
-      PROP_V1_FLOW:0, PROP_V2_FLOW:0, PROP_V3_FLOW:0,
-      PROP_V4_FLOW:0, PROP_V5_FLOW:0, PROP_V8_FLOW:0,
-      THERM_PANEL_A:-22.4, THERM_BATT:14.1, THERM_PROP_LINE:16.3,
-      PLD_LASER_ALIGN:0.003, PLD_SHARK_TEMP:21.3,
-      PLD_SHARK_ACT:78.0, PLD_PHOTON_OUT:847.0
-    };
-
-    this.sig = {
-      ATT_ROLL:0.008,   ATT_PITCH:0.006,   ATT_YAW:0.010,
-      ATT_ROLLRATE:8e-4, ATT_PITCHRATE:6e-4, ATT_YAWRATE:9e-4,
-      RW1_SPEED:1.5,  RW2_SPEED:1.5,  RW3_SPEED:1.2,  RW4_SPEED:1.8,
-      PWR_SOLAR_A:0.4, PWR_SOLAR_B:0.4,
-      PWR_BATT_SOC:0.05, PWR_BATT_V:0.02,
-      PWR_ADCS_DRAW:0.3, PWR_BUS_LOAD:0.6,
-      PROP_TANK_PRESS:0.15, PROP_TANK_TEMP:0.08,
-      PROP_MASS:0.002,
-      PROP_V1_FLOW:0.004, PROP_V2_FLOW:0.004, PROP_V3_FLOW:0.005,
-      PROP_V4_FLOW:0.004, PROP_V5_FLOW:0.004, PROP_V8_FLOW:0.004,
-      THERM_PANEL_A:0.3, THERM_BATT:0.10, THERM_PROP_LINE:0.05,
-      PLD_LASER_ALIGN:0.001, PLD_SHARK_TEMP:0.05,
-      PLD_SHARK_ACT:0.4, PLD_PHOTON_OUT:1.2
-    };
-
-    this.val  = Object.assign({}, this.nom);
-    this.hist = {};
-    for (const k of Object.keys(this.nom)) {
-      this.hist[k] = new Array(this.HISTORY).fill(this.nom[k]);
-    }
-
-    // integrated physics state
-    this._rollRateDrift = 0;
-    this._rollAccum     = 0;
-    this._pitchAccum    = 0;
-    this._yawAccum      = 0;
-    this._massLoss      = 0;
-    this._nomMassLoss   = 0;
-    this._pressLoss     = 0;
-    this._nomPressLoss  = 0;
-    this._rw1Drift      = 0;
-    this._rw3Drift      = 0;
-    this._adcsExtra     = 0;
-    this._battHeat      = 0;
-    this._propLineCool  = 0;
-    this._alignDrift    = 0;
-  }
-
-  _gauss(s) {
-    const u = Math.random(), v = Math.random();
-    return s * Math.sqrt(-2*Math.log(u||1e-9)) * Math.cos(2*Math.PI*v);
-  }
-
-  magnitude() {
-    if (!this.faultActive) return 0;
-    return 1 / (1 + Math.exp(-0.008 * (this.faultElapsed - 240)));
-  }
-
-  tick(dt) {
-    this.missionElapsed += dt;
-    if (this.faultActive) this.faultElapsed += dt;
-
-    const M  = this.magnitude();
-    const ft = this.faultElapsed;
-
-    // nominal slow depletion (bleed + stationkeeping)
-    this._nomPressLoss += 0.02 / 60 * dt;
-    this._nomMassLoss  += 1.8e-6 * dt;
-
-    // ── fault physics integration ──────────────────────────────
-    if (this.faultActive && M > 0) {
-      // disturbance torque → rate drift (net after ~70% ADCS compensation)
-      const torque = 1.5e-4 * M * M;      // deg/s² disturbance
-      this._rollRateDrift += torque * dt * 0.30;  // 30% leaks through
-
-      // attitude angles integrate from net rate
-      this._rollAccum  +=  this._rollRateDrift * dt;
-      this._pitchAccum +=  this._rollRateDrift * 0.14 * dt;
-      this._yawAccum   += -this._rollRateDrift * 0.11 * dt;
-
-      // propellant depletion (stuck valve + ADCS compensation firings)
-      this._massLoss   += 4.5e-4 * M * dt;
-      this._pressLoss  += 4.5  * M / 60 * dt;
-
-      // reaction wheels absorbing angular momentum
-      this._rw1Drift   +=  22 * M * M * dt;
-      this._rw3Drift   -=  18 * M * M * dt;
-
-      // ADCS power (quadratic with compensation effort)
-      this._adcsExtra   = 18 * M * M;
-
-      // thermal
-      this._battHeat   += 3e-4 * M * dt;
-      this._propLineCool -= 2e-4 * M * dt;
-
-      // payload alignment degrades slowly
-      this._alignDrift += 8e-5 * M * M * dt;
-    }
-
-    const n = this.nom;
-    const s = this.sig;
-    const v = this.val;
-    const g = (k) => this._gauss(s[k]);
-
-    // ── attitude ──────────────────────────────────────────────
-    v.ATT_ROLL      = this._rollAccum  + g('ATT_ROLL');
-    v.ATT_PITCH     = this._pitchAccum + g('ATT_PITCH');
-    v.ATT_YAW       = this._yawAccum   + g('ATT_YAW');
-    v.ATT_ROLLRATE  = this._rollRateDrift      + g('ATT_ROLLRATE');
-    v.ATT_PITCHRATE = this._rollRateDrift*0.14 + g('ATT_PITCHRATE');
-    v.ATT_YAWRATE   =-this._rollRateDrift*0.11 + g('ATT_YAWRATE');
-
-    // ── reaction wheels ───────────────────────────────────────
-    v.RW1_SPEED = n.RW1_SPEED + this._rw1Drift + g('RW1_SPEED');
-    v.RW2_SPEED = n.RW2_SPEED +                  g('RW2_SPEED');
-    v.RW3_SPEED = n.RW3_SPEED + this._rw3Drift + g('RW3_SPEED');
-    v.RW4_SPEED = n.RW4_SPEED +                  g('RW4_SPEED');
-
-    // ── power ─────────────────────────────────────────────────
-    // solar follows a slow sinusoidal eclipse cycle (~90s period = 1 orbit sim)
-    const eclFrac = 0.5 + 0.5*Math.sin(this.missionElapsed * 2*Math.PI / 90);
-    v.PWR_SOLAR_A  = (n.PWR_SOLAR_A * eclFrac) + g('PWR_SOLAR_A');
-    v.PWR_SOLAR_B  = (n.PWR_SOLAR_B * eclFrac) + g('PWR_SOLAR_B');
-    v.PWR_ADCS_DRAW = n.PWR_ADCS_DRAW + this._adcsExtra + g('PWR_ADCS_DRAW');
-    v.PWR_BUS_LOAD  = n.PWR_BUS_LOAD  + this._adcsExtra + g('PWR_BUS_LOAD');
-    const deficit  = Math.max(0, v.PWR_BUS_LOAD - v.PWR_SOLAR_A - v.PWR_SOLAR_B);
-    v.PWR_BATT_V   = n.PWR_BATT_V  - deficit*2e-4  + g('PWR_BATT_V');
-    v.PWR_BATT_SOC = n.PWR_BATT_SOC - deficit*1e-4 + g('PWR_BATT_SOC');
-
-    // ── propulsion ────────────────────────────────────────────
-    v.PROP_MASS       = Math.max(0, n.PROP_MASS - this._massLoss - this._nomMassLoss);
-    v.PROP_TANK_PRESS = n.PROP_TANK_PRESS - this._pressLoss - this._nomPressLoss + g('PROP_TANK_PRESS');
-    v.PROP_TANK_TEMP  = n.PROP_TANK_TEMP  + this._propLineCool + g('PROP_TANK_TEMP');
-
-    // V3 stuck open (primary fault signature)
-    v.PROP_V3_FLOW = Math.max(0, 0.82 * M + g('PROP_V3_FLOW'));
-
-    // nominal tiny noise on others when no ADCS firing
-    v.PROP_V1_FLOW = Math.max(0, g('PROP_V1_FLOW'));
-    v.PROP_V2_FLOW = Math.max(0, g('PROP_V2_FLOW'));
-    v.PROP_V5_FLOW = Math.max(0, g('PROP_V5_FLOW'));
-
-    // V4 and V8: ADCS compensation pulses (increasingly frequent)
-    const pulsePeriod = M > 0.02 ? Math.max(2.5, 28 / (M * 8 + 0.1)) : 9999;
-    const phase4 = (ft % pulsePeriod) / pulsePeriod;
-    const phase8 = ((ft + pulsePeriod*0.55) % pulsePeriod) / pulsePeriod;
-    v.PROP_V4_FLOW = Math.max(0, (phase4 < 0.06 && M > 0.03 ? 0.32*M + this._gauss(0.012) : g('PROP_V4_FLOW')));
-    v.PROP_V8_FLOW = Math.max(0, (phase8 < 0.06 && M > 0.06 ? 0.26*M + this._gauss(0.010) : g('PROP_V8_FLOW')));
-
-    // ── thermal ───────────────────────────────────────────────
-    v.THERM_PANEL_A    = n.THERM_PANEL_A   + g('THERM_PANEL_A');
-    v.THERM_BATT       = n.THERM_BATT      + this._battHeat + g('THERM_BATT');
-    v.THERM_PROP_LINE  = n.THERM_PROP_LINE + this._propLineCool + g('THERM_PROP_LINE');
-
-    // ── payload ───────────────────────────────────────────────
-    v.PLD_LASER_ALIGN = Math.max(0, n.PLD_LASER_ALIGN + this._alignDrift + g('PLD_LASER_ALIGN'));
-    v.PLD_SHARK_TEMP  = n.PLD_SHARK_TEMP + this._battHeat*0.4 + g('PLD_SHARK_TEMP');
-    v.PLD_SHARK_ACT   = n.PLD_SHARK_ACT  + 4*M + g('PLD_SHARK_ACT');
-    v.PLD_PHOTON_OUT  = n.PLD_PHOTON_OUT - this._alignDrift*480 + g('PLD_PHOTON_OUT');
-
-    // push to history
-    for (const k of Object.keys(this.hist)) {
-      this.hist[k].push(v[k]);
-      if (this.hist[k].length > this.HISTORY) this.hist[k].shift();
-    }
-  }
-
-  injectFault() { if (!this.faultActive) { this.faultActive = true; this.faultElapsed = 0; } }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STRIP CHART
-// ═══════════════════════════════════════════════════════════════
-class StripChart {
-  constructor(canvas, opts) {
-    this.c  = canvas;
-    this.cx = canvas.getContext('2d');
-    this.channels  = opts.channels;    // [{id,label,color}]
-    this.yMin      = opts.yMin;
-    this.yMax      = opts.yMax;
-    this.unit      = opts.unit || '';
-    this.gridLines = opts.gridLines || [];  // [{y,color}]
-    this.ML = 52; this.MR = 6; this.MT = 4; this.MB = 18;
-  }
-
-  draw(tm) {
-    const { c, cx, ML, MR, MT, MB } = this;
-    const W = c.width, H = c.height;
-    const PW = W - ML - MR, PH = H - MT - MB;
-    const yRange = this.yMax - this.yMin;
-
-    // background
-    cx.fillStyle = '#040412';
-    cx.fillRect(0, 0, W, H);
-
-    // plot area border
-    cx.strokeStyle = '#0c1e38';
-    cx.lineWidth = 1;
-    cx.strokeRect(ML, MT, PW, PH);
-
-    // grid
-    cx.strokeStyle = '#081828';
-    cx.setLineDash([2, 5]);
-    for (let i = 1; i < 4; i++) {
-      const x = ML + (i/4)*PW;
-      cx.beginPath(); cx.moveTo(x, MT); cx.lineTo(x, MT+PH); cx.stroke();
-    }
-    for (let i = 1; i < 4; i++) {
-      const y = MT + (i/4)*PH;
-      cx.beginPath(); cx.moveTo(ML, y); cx.lineTo(ML+PW, y); cx.stroke();
-    }
-    cx.setLineDash([]);
-
-    // reference lines (e.g. zero line)
-    for (const gl of this.gridLines) {
-      const gy = MT + PH - ((gl.y - this.yMin) / yRange) * PH;
-      if (gy < MT || gy > MT+PH) continue;
-      cx.strokeStyle = gl.color || 'rgba(255,160,0,0.25)';
-      cx.setLineDash([4, 6]);
-      cx.lineWidth = 1;
-      cx.beginPath(); cx.moveTo(ML, gy); cx.lineTo(ML+PW, gy); cx.stroke();
-      cx.setLineDash([]);
-    }
-
-    // Y-axis labels
-    cx.fillStyle = '#1e3a54';
-    cx.font = '9px monospace';
-    cx.textAlign = 'right';
-    const dec = yRange < 0.05 ? 4 : yRange < 0.5 ? 3 : yRange < 5 ? 2 : yRange < 50 ? 1 : 0;
-    for (let i = 0; i <= 4; i++) {
-      const val = this.yMin + (i/4)*yRange;
-      const y   = MT + PH - (i/4)*PH;
-      cx.fillText(val.toFixed(dec), ML-3, y+3);
-    }
-
-    // Time axis labels (–120s … 0)
-    cx.textAlign = 'center';
-    cx.fillStyle = '#1a3050';
-    cx.font = '8px monospace';
-    for (let i = 0; i <= 4; i++) {
-      const x = ML + (i/4)*PW;
-      const s = Math.round((1 - i/4)*60);
-      cx.fillText(s === 0 ? '0s' : `-${s}s`, x, H-4);
-    }
-
-    // data lines
-    const N = tm.HISTORY;
-    for (const ch of this.channels) {
-      const data = tm.hist[ch.id];
-      if (!data) continue;
-      const len = data.length;
-      cx.strokeStyle = ch.color;
-      cx.lineWidth = 1.5;
-      cx.beginPath();
-      let first = true;
-      for (let i = 0; i < len; i++) {
-        const t   = (N - len + i) / (N - 1);
-        const px  = ML + t*PW;
-        const norm = Math.max(0, Math.min(1, (data[i] - this.yMin) / yRange));
-        const py  = MT + PH - norm*PH;
-        if (first) { cx.moveTo(px, py); first = false; }
-        else        cx.lineTo(px, py);
-      }
-      cx.stroke();
-    }
-
-    // legend (current values, top-left)
-    let ly = MT + 11;
-    cx.font = '9px monospace';
-    cx.textAlign = 'left';
-    for (const ch of this.channels) {
-      const v = tm.val[ch.id];
-      if (v === undefined) continue;
-      cx.fillStyle = ch.color;
-      const vStr = v.toFixed(dec);
-      cx.fillText(`${ch.label}: ${vStr}${this.unit ? ' '+this.unit : ''}`, ML+3, ly);
-      ly += 12;
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CANVAS SIZING
-// NOTE: do NOT call getContext here — Three.js canvases must keep
-// their context slot free for WebGL; chart canvases get their 2D
-// context lazily in the StripChart constructor.
-// ═══════════════════════════════════════════════════════════════
-function sizeCanvas(el) {
-  const r = el.getBoundingClientRect();
-  el.width  = Math.round(r.width  || 400);
-  el.height = Math.round(r.height || 140);
-  el._cssW  = el.width;
-  el._cssH  = el.height;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// THREE.JS — SATELLITE 3-D VIEWER
-// ═══════════════════════════════════════════════════════════════
-let satRenderer, satScene, satCamera, satModel, satAnimId;
-
-function initSatViewer() {
-  const canvas = document.getElementById('sat-canvas');
-  const W = canvas._cssW, H = canvas._cssH;
-
-  satRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  satRenderer.setPixelRatio(window.devicePixelRatio);
-  satRenderer.setSize(W, H, false);
-
-  satScene = new THREE.Scene();
-  satScene.background = new THREE.Color(0x02020f);
-
-  satCamera = new THREE.PerspectiveCamera(45, W/H, 0.01, 2000);
-  satCamera.position.set(3.5, 1.8, 4.5);
-  satCamera.lookAt(0, 0, 0);
-
-  // stars
-  const sv = [];
-  for (let i = 0; i < 3200; i++) {
-    const r = 180 + Math.random()*200;
-    const th = Math.random()*Math.PI*2;
-    const ph = Math.acos(2*Math.random()-1);
-    sv.push(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph));
-  }
-  const sg = new THREE.BufferGeometry();
-  sg.setAttribute('position', new THREE.Float32BufferAttribute(sv,3));
-  satScene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color:0xffffff, size:0.6 })));
-
-  // lighting
-  const sun = new THREE.DirectionalLight(0xfff8e0, 1.4);
-  sun.position.set(8, 4, 6);
-  satScene.add(sun);
-  satScene.add(new THREE.AmbientLight(0x112244, 0.45));
-
-  // attitude pivot group
-  satScene.userData.pivot = new THREE.Group();
-  satScene.add(satScene.userData.pivot);
-
-  // load GLB
-  const loader = new GLTFLoader();
-  loader.load('Hubble.glb',
-    (gltf) => {
-      const m = gltf.scene;
-      const box = new THREE.Box3().setFromObject(m);
-      const sz  = box.getSize(new THREE.Vector3());
-      const sc  = 3.0 / Math.max(sz.x, sz.y, sz.z);
-      m.scale.setScalar(sc);
-      const ctr = box.getCenter(new THREE.Vector3());
-      m.position.copy(ctr.multiplyScalar(-sc));
-      satScene.userData.pivot.add(m);
-      satModel = m;
-    },
-    undefined,
-    () => {
-      // fallback procedural satellite
-      const g = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.28, 0.28, 1.6, 20),
-        new THREE.MeshPhongMaterial({ color: 0xc8b060 })
-      );
-      g.add(body);
-      const pm = new THREE.MeshPhongMaterial({ color:0x1166cc, emissive:0x001144 });
-      [-1.5, 1.5].forEach(x => {
-        const p = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.03, 0.55), pm);
-        p.position.set(x, 0, 0); g.add(p);
-      });
-      const dish = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.4, 0.4, 0.04, 24, 1, false, 0, Math.PI),
-        new THREE.MeshPhongMaterial({ color:0x999999, side: THREE.DoubleSide })
-      );
-      dish.position.set(0, 0.9, 0); g.add(dish);
-      satScene.userData.pivot.add(g);
-      satModel = g;
-    }
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// THREE.JS — ORBIT / EARTH VIEWER
-// ═══════════════════════════════════════════════════════════════
-let orbitRenderer, orbitScene, orbitCamera, satDot, earthMesh;
-
-function initOrbitViewer() {
-  const canvas = document.getElementById('orbit-canvas');
-  const W = canvas._cssW, H = canvas._cssH;
-
-  orbitRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  orbitRenderer.setPixelRatio(window.devicePixelRatio);
-  orbitRenderer.setSize(W, H, false);
-
-  orbitScene = new THREE.Scene();
-  orbitScene.background = new THREE.Color(0x01010a);
-
-  const asp = W/H;
-  const vs  = 3.0;
-  orbitCamera = new THREE.OrthographicCamera(-vs*asp, vs*asp, vs, -vs, 0.1, 100);
-  orbitCamera.position.set(0, 0, 10);
-  orbitCamera.lookAt(0, 0, 0);
-
-  // background stars
-  const ov = [];
-  for (let i = 0; i < 1800; i++) {
-    ov.push((Math.random()-0.5)*80, (Math.random()-0.5)*80, -8 - Math.random()*20);
-  }
-  const og = new THREE.BufferGeometry();
-  og.setAttribute('position', new THREE.Float32BufferAttribute(ov,3));
-  orbitScene.add(new THREE.Points(og, new THREE.PointsMaterial({ color:0xffffff, size:0.12 })));
-
-  // Earth sphere
-  const etex = new THREE.TextureLoader().load('Earth_Blue_Marble.jpg');
-  earthMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(1.6, 64, 32),
-    new THREE.MeshPhongMaterial({ map: etex })
-  );
-  orbitScene.add(earthMesh);
-
-  // night-side overlay (dark half-sphere — approximate terminator)
-  const nightMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(1.605, 32, 16),
-    new THREE.MeshBasicMaterial({ color:0x000022, transparent:true, opacity:0.55,
-      side: THREE.FrontSide, depthWrite:false })
-  );
-  nightMesh.userData.isNight = true;
-  orbitScene.add(nightMesh);
-  // clip half with a custom clipping plane pointing away from sun
-  orbitRenderer.localClippingEnabled = true;
-  nightMesh.material.clippingPlanes = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0)];
-
-  // orbit ring (LEO ~408km)
-  const OB = 2.18;
-  const pts = [];
-  for (let i = 0; i <= 256; i++) {
-    const a = (i/256)*Math.PI*2;
-    pts.push(new THREE.Vector3(Math.cos(a)*OB, Math.sin(a)*OB, 0));
-  }
-  const og2 = new THREE.BufferGeometry().setFromPoints(pts);
-  orbitScene.add(new THREE.Line(og2,
-    new THREE.LineBasicMaterial({ color:0xffffff, opacity:0.3, transparent:true })));
-
-  // satellite dot
-  satDot = new THREE.Mesh(
-    new THREE.SphereGeometry(0.07, 10, 10),
-    new THREE.MeshBasicMaterial({ color:0xffff44 })
-  );
-  orbitScene.add(satDot);
-
-  // glow ring around sat dot
-  const glowRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.09, 0.14, 20),
-    new THREE.MeshBasicMaterial({ color:0xffcc00, transparent:true, opacity:0.35,
-      side:THREE.DoubleSide, depthWrite:false })
-  );
-  satDot.add(glowRing);
-
-  // lighting for earth
-  orbitScene.add(new THREE.AmbientLight(0x334466, 0.8));
-  const sunL = new THREE.DirectionalLight(0xffffff, 1.6);
-  sunL.position.set(6, 0, 8);
-  orbitScene.add(sunL);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SUBSYSTEM STATUS PANEL  (HTML)
-// ═══════════════════════════════════════════════════════════════
-const SUBSYSTEMS = [
-  { id:'adcs',  name:'ADCS',       icon:'◈' },
-  { id:'power', name:'POWER',      icon:'◈' },
-  { id:'prop',  name:'PROPULSION', icon:'◈' },
-  { id:'therm', name:'THERMAL',    icon:'◈' },
-  { id:'comms', name:'COMMS',      icon:'◈' },
-  { id:'cdh',   name:'C&DH',       icon:'◈' },
-  { id:'pld',   name:'PAYLOAD',    icon:'◈' },
-];
-
-function buildSubsysPanel() {
-  const list = document.getElementById('subsys-list');
-  list.innerHTML = '';
-  for (const s of SUBSYSTEMS) {
-    const row = document.createElement('div');
-    row.className = 'subsys-row';
-    row.id = `ss-${s.id}`;
-    row.innerHTML = `
-      <span class="subsys-name">${s.name}</span>
-      <span class="subsys-dot" id="dot-${s.id}"></span>
-      <span class="subsys-status" id="sts-${s.id}">NOMINAL</span>
-      <span class="subsys-vals" id="val-${s.id}"></span>`;
-    list.appendChild(row);
-  }
-}
-
-function updateSubsysPanel(tm) {
-  const v = tm.val;
-  // values never change status — only numeric values update
-  const fmt = (n,d=2) => Number(n).toFixed(d);
-
-  document.getElementById('val-adcs').innerHTML = `
-    <span class="sv-label">ROLL&nbsp;</span><span class="sv-val">${fmt(v.ATT_ROLL,3)}°</span>
-    <span class="sv-label">&nbsp;RATE&nbsp;</span><span class="sv-val">${fmt(v.ATT_ROLLRATE,4)} °/s</span><br>
-    <span class="sv-label">PITCH</span><span class="sv-val">&nbsp;${fmt(v.ATT_PITCH,3)}°</span>
-    <span class="sv-label">&nbsp;YAW&nbsp;</span><span class="sv-val">${fmt(v.ATT_YAW,3)}°</span>`;
-
-  document.getElementById('val-power').innerHTML = `
-    <span class="sv-label">GEN&nbsp;</span><span class="sv-val">${fmt(v.PWR_SOLAR_A+v.PWR_SOLAR_B,1)} W</span>
-    <span class="sv-label">&nbsp;LOAD&nbsp;</span><span class="sv-val">${fmt(v.PWR_BUS_LOAD,1)} W</span><br>
-    <span class="sv-label">BATT&nbsp;</span><span class="sv-val">${fmt(v.PWR_BATT_SOC,1)}%</span>
-    <span class="sv-label">&nbsp;${fmt(v.PWR_BATT_V,2)} V</span>`;
-
-  document.getElementById('val-prop').innerHTML = `
-    <span class="sv-label">P_TANK&nbsp;</span><span class="sv-val">${fmt(v.PROP_TANK_PRESS,1)} psi</span><br>
-    <span class="sv-label">MASS&nbsp;</span><span class="sv-val">${fmt(v.PROP_MASS,3)} kg</span>
-    <span class="sv-label">&nbsp;ΔV&nbsp;</span><span class="sv-val">${fmt(v.PROP_MASS*4.2,1)} m/s</span>`;
-
-  document.getElementById('val-therm').innerHTML = `
-    <span class="sv-label">BATT&nbsp;</span><span class="sv-val">${fmt(v.THERM_BATT,1)}°C</span>
-    <span class="sv-label">&nbsp;PNLA&nbsp;</span><span class="sv-val">${fmt(v.THERM_PANEL_A,1)}°C</span><br>
-    <span class="sv-label">PROP&nbsp;</span><span class="sv-val">${fmt(v.THERM_PROP_LINE,2)}°C</span>`;
-
-  const contactStations = ['GOLDSTONE','MADRID','CANBERRA'];
-  const sta = contactStations[Math.floor(tm.missionElapsed/150)%3];
-  const rssi = (-87.3 + Math.sin(tm.missionElapsed*0.04)*2.1).toFixed(1);
-  document.getElementById('val-comms').innerHTML = `
-    <span class="sv-label">STA&nbsp;</span><span class="sv-val">${sta}</span>
-    <span class="sv-label">&nbsp;RSSI&nbsp;</span><span class="sv-val">${rssi} dBm</span><br>
-    <span class="sv-label">RATE&nbsp;</span><span class="sv-val">4.096 Mbps</span>`;
-
-  const cpu = (23 + Math.sin(tm.missionElapsed*0.17)*2).toFixed(0);
-  document.getElementById('val-cdh').innerHTML = `
-    <span class="sv-label">CPU&nbsp;</span><span class="sv-val">${cpu}%</span>
-    <span class="sv-label">&nbsp;MEM&nbsp;</span><span class="sv-val">41%</span><br>
-    <span class="sv-label">STORAGE&nbsp;</span><span class="sv-val">1.18 TB</span>`;
-
-  document.getElementById('val-pld').innerHTML = `
-    <span class="sv-label">ALIGN&nbsp;</span><span class="sv-val">${fmt(v.PLD_LASER_ALIGN,4)} mdeg</span><br>
-    <span class="sv-label">OUTPUT&nbsp;</span><span class="sv-val">${fmt(v.PLD_PHOTON_OUT,1)} mW</span>`;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// PAYLOAD PANEL
-// ═══════════════════════════════════════════════════════════════
-function buildPayloadPanel() {
-  document.getElementById('payload-content').innerHTML = `
-    <div id="pld-class">⚠ CLASSIFICATION: UNCLASSIFIED // FOUO // PROPRIETARY — SHARK PROGRAM</div>
-    <div class="pld-row"><span class="pld-label">PAYLOAD DESIGNATION</span><span class="pld-val">EDEP-1</span></div>
-    <div class="pld-row"><span class="pld-label">PROPULSION MEDIUM</span><span class="pld-val">BIOMETRIC (ELASMOBRANCH)</span></div>
-    <div class="pld-row"><span class="pld-label">SHARK TANK TEMP</span><span id="pld-st" class="pld-val">21.3 °C</span></div>
-    <div class="pld-row"><span class="pld-label">SHARK ACTIVITY</span><span id="pld-sa" class="pld-val">78 %</span></div>
-    <div class="pld-row"><span class="pld-label">BIOMETRIC COUPLING</span><span class="pld-val"><span class="pld-badge">ENGAGED</span></span></div>
-    <div class="pld-row"><span class="pld-label">LASER BORE-SIGHT ERR</span><span id="pld-la" class="pld-val">0.0030 mdeg</span></div>
-    <div class="pld-row"><span class="pld-label">PHOTON OUTPUT</span><span id="pld-po" class="pld-val">847.0 mW</span></div>
-    <div class="pld-row"><span class="pld-label">PAYLOAD MODE</span><span class="pld-val"><span class="pld-badge">ACTIVE TRACKING</span></span></div>`;
-}
-
-function updatePayloadPanel(tm) {
-  const v = tm.val;
-  document.getElementById('pld-st').textContent = v.PLD_SHARK_TEMP.toFixed(2)  + ' °C';
-  document.getElementById('pld-sa').textContent = v.PLD_SHARK_ACT.toFixed(1)   + ' %';
-  document.getElementById('pld-la').textContent = v.PLD_LASER_ALIGN.toFixed(4) + ' mdeg';
-  document.getElementById('pld-po').textContent = v.PLD_PHOTON_OUT.toFixed(1)  + ' mW';
-}
-
-// ═══════════════════════════════════════════════════════════════
-// HEADER UPDATE
-// ═══════════════════════════════════════════════════════════════
-function updateHeader(tm) {
-  const sec = Math.floor(tm.missionElapsed);
-  const h = String(Math.floor(sec/3600)).padStart(3,'0');
-  const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
-  const s = String(sec%60).padStart(2,'0');
-  document.getElementById('met').textContent = `${h}:${m}:${s}`;
-  document.getElementById('orb-count').textContent = String(142 + Math.floor(tm.missionElapsed/90)).padStart(4,'0');
-  const stations = ['GOLDSTONE','MADRID','CANBERRA'];
-  const sta = stations[Math.floor(tm.missionElapsed/150)%3];
-  const aos = (Math.floor(tm.missionElapsed/150)%2===0);
-  document.getElementById('contact-sta').textContent = (aos?'AOS ':'LOS ') + sta;
-}
-
-// ═══════════════════════════════════════════════════════════════
-// STRIP CHART SETUP
-// ═══════════════════════════════════════════════════════════════
-let charts = {};
-
-function initCharts() {
-  charts.angles = new StripChart(document.getElementById('ch-angles'), {
-    channels: [
-      { id:'ATT_ROLL',  label:'ROLL',  color:'#ff5555' },
-      { id:'ATT_PITCH', label:'PTCH',  color:'#44ff99' },
-      { id:'ATT_YAW',   label:'YAW',   color:'#4499ff' },
-    ],
-    yMin:-0.5, yMax:0.5, unit:'deg',
-    gridLines:[{y:0,color:'rgba(255,255,255,0.08)'}],
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     APP — topbar + content
+═══════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <div id="tb-left">
+      <span id="tb-sc-icon">🛰️</span>
+      <div id="tb-sc-name">
+        <div id="tb-name">SSL-1</div>
+        <div id="tb-sub">SHARES WITH LASER SATELLITE</div>
+      </div>
+      <div id="sys-status" class="s-nom">NOMINAL</div>
+    </div>
+
+    <div id="tb-center">
+      <div class="tb-item">
+        <div class="tb-label">Mission Elapsed</div>
+        <div class="tb-val" id="met">000:00:00</div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <div class="tb-label">UTC</div>
+        <div class="tb-val" id="utc-clock">2025-05-24 00:00:00</div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <div class="tb-label">Ground Station</div>
+        <div class="tb-val" id="gs-name">GOLDSTONE</div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <div class="tb-label">Next Pass</div>
+        <div class="tb-val" id="next-pass">09:07</div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <div class="tb-label">Orbit</div>
+        <div class="tb-val" id="orb-count">0142</div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-item">
+        <div class="tb-label">Mode</div>
+        <div class="tb-val" id="sc-mode">FINE POINTING</div>
+      </div>
+    </div>
+
+    <div id="tb-right">
+      <button class="tb-btn tb-btn-fault" id="fault-btn">[ F ] FAULT INJ</button>
+      <button class="tb-btn" id="eventlog-btn">EVENT LOG ▸</button>
+    </div>
+  </header>
+
+  <!-- ═══ MAIN CONTENT ═══════════════════════════════════════════ -->
+  <main id="content">
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE 1 — OVERVIEW
+    ══════════════════════════════════════════════════════════ -->
+    <div id="page-overview" class="page">
+      <div class="ov-grid">
+
+        <!-- Spacecraft Overview -->
+        <div class="panel ov-spacecraft">
+          <div class="ph">
+            <span class="ph-title">Spacecraft Overview</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="sc-body">
+            <canvas id="sat-canvas"></canvas>
+            <div id="sc-status-list">
+              <!-- Populated by Phase 2+ JS; static placeholders for Phase 1 -->
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Bus Voltage</span><span class="sc-val">28.14 V</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Power Output</span><span class="sc-val">299.9 W</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Temperature</span><span class="sc-val">14.1 °C</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Attitude</span><span class="sc-val">0.003°</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Propulsion</span><span class="sc-val">312.4 psi</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Solar Load</span><span class="sc-val">82.4 %</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Payload Load</span><span class="sc-val">847 mW</span><span class="sc-badge nom">NOMINAL</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attitude & Orbit mini -->
+        <div class="panel ov-attitude">
+          <div class="ph">
+            <span class="ph-title">Attitude &amp; Orbit</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="att-mini-body">
+            <div class="att-mini-left">
+              <canvas id="orbit-mini-canvas"></canvas>
+              <div class="att-mini-params">
+                <div class="amp-row"><span class="amp-l">ALTITUDE</span><span class="amp-v" id="ov-alt">408.0 km</span></div>
+                <div class="amp-row"><span class="amp-l">INCLINATION</span><span class="amp-v" id="ov-inc">51.60°</span></div>
+                <div class="amp-row"><span class="amp-l">PERIOD</span><span class="amp-v" id="ov-per">92.68 min</span></div>
+                <div class="amp-row"><span class="amp-l">RAAN</span><span class="amp-v" id="ov-raan">180.2°</span></div>
+              </div>
+            </div>
+            <div class="att-mini-right">
+              <div class="att-angles">
+                <div class="aa-row"><span class="aa-l">ROLL</span><span class="aa-v" id="ov-roll">0.001</span><span class="aa-unit">°</span></div>
+                <div class="aa-row"><span class="aa-l">PITCH</span><span class="aa-v" id="ov-pitch">0.002</span><span class="aa-unit">°</span></div>
+                <div class="aa-row"><span class="aa-l">YAW</span><span class="aa-v" id="ov-yaw">-0.001</span><span class="aa-unit">°</span></div>
+              </div>
+              <canvas id="att-mini-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Power System -->
+        <div class="panel ov-power">
+          <div class="ph">
+            <span class="ph-title">Power System / Solar Array</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="power-body">
+            <div class="power-gauge-row">
+              <canvas id="batt-gauge" width="100" height="100"></canvas>
+              <div class="power-stats">
+                <div class="ps-row"><span class="ps-l">Solar A</span><span class="ps-v" id="pw-sola">148.2 W</span></div>
+                <div class="ps-row"><span class="ps-l">Solar B</span><span class="ps-v" id="pw-solb">151.7 W</span></div>
+                <div class="ps-row"><span class="ps-l">Bus Load</span><span class="ps-v" id="pw-load">198.4 W</span></div>
+                <div class="ps-row"><span class="ps-l">Battery V</span><span class="ps-v" id="pw-battv">28.14 V</span></div>
+                <div class="ps-row"><span class="ps-l">Status</span><span class="ps-v green" id="pw-status">NOMINAL</span></div>
+              </div>
+            </div>
+            <div class="power-bar-wrap">
+              <canvas id="power-bar" height="44"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thermal -->
+        <div class="panel ov-thermal">
+          <div class="ph">
+            <span class="ph-title">Thermal</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="therm-body" id="therm-content">
+            <!-- Populated by Phase 4 JS; placeholders for Phase 1 -->
+            <div class="therm-row">
+              <span class="therm-name">OBC</span>
+              <span class="therm-val green" id="th-obc">22.4 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:42%;background:var(--status-nom)"></div></div>
+            </div>
+            <div class="therm-row">
+              <span class="therm-name">Battery</span>
+              <span class="therm-val green" id="th-batt">14.1 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:38%;background:var(--status-nom)"></div></div>
+            </div>
+            <div class="therm-row">
+              <span class="therm-name">Propulsion</span>
+              <span class="therm-val green" id="th-prop">16.3 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:35%;background:var(--status-nom)"></div></div>
+            </div>
+            <div class="therm-row">
+              <span class="therm-name">Solar Array</span>
+              <span class="therm-val yellow" id="th-solar">-22.4 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:22%;background:var(--status-warn)"></div></div>
+            </div>
+            <div class="therm-row">
+              <span class="therm-name">Structure</span>
+              <span class="therm-val green" id="th-struct">17.2 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:40%;background:var(--status-nom)"></div></div>
+            </div>
+            <div class="therm-row">
+              <span class="therm-name">ME Nozzle</span>
+              <span class="therm-val green" id="th-nozzle">22.4 °C</span>
+              <div class="therm-bar"><div class="therm-bar-fill" style="width:44%;background:var(--status-nom)"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payload SHARKS + LASERS (side by side) -->
+        <div class="ov-payloads">
+          <div class="panel">
+            <div class="ph">
+              <span class="ph-title">Payload: SHARKS</span>
+              <span class="live-badge">LIVE</span>
+            </div>
+            <div class="pld-body" id="sharks-content">
+              <span class="pld-icon">🦈</span>
+              <div class="pld-row"><span class="pld-l">Designation</span><span class="pld-v">EDEP-1</span></div>
+              <div class="pld-row"><span class="pld-l">Tank Temp</span><span class="pld-v" id="pld-st">21.30 °C</span></div>
+              <div class="pld-row"><span class="pld-l">Activity</span><span class="pld-v" id="pld-sa">78.0 %</span></div>
+              <div class="pld-row"><span class="pld-l">Coupling</span><span class="pld-v"><span class="pld-badge eng">ENGAGED</span></span></div>
+              <div class="pld-row"><span class="pld-l">Feed Status</span><span class="pld-v"><span class="pld-badge eng">ACTIVE</span></span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ph">
+              <span class="ph-title">Payload: LASERS</span>
+              <span class="live-badge">LIVE</span>
+            </div>
+            <div class="pld-body" id="lasers-content">
+              <span class="pld-icon">🔴</span>
+              <div class="pld-row"><span class="pld-l">Medium</span><span class="pld-v">ELASMOBRANCH</span></div>
+              <div class="pld-row"><span class="pld-l">Bore-sight Err</span><span class="pld-v" id="pld-la">0.0030 mdeg</span></div>
+              <div class="pld-row"><span class="pld-l">Photon Output</span><span class="pld-v" id="pld-po">847.0 mW</span></div>
+              <div class="pld-row"><span class="pld-l">Alignment</span><span class="pld-v"><span class="pld-badge eng">TRACKING</span></span></div>
+              <div class="pld-row"><span class="pld-l">Mode</span><span class="pld-v"><span class="pld-badge eng">ACTIVE</span></span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Communications -->
+        <div class="panel ov-comms">
+          <div class="ph">
+            <span class="ph-title">Communications</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="comms-body">
+            <div class="comms-gauge-wrap">
+              <canvas id="sig-gauge" width="120" height="70"></canvas>
+            </div>
+            <div class="comms-section">
+              <div class="comms-section-title">Downlink</div>
+              <div class="comms-row"><span class="comms-l">Rate</span><span class="comms-v on" id="dl-rate">4.096 Mbps</span></div>
+              <div class="comms-row"><span class="comms-l">Carrier</span><span class="comms-v" id="dl-carrier">2287.5 MHz</span></div>
+              <div class="comms-row"><span class="comms-l">Modulation</span><span class="comms-v">BPSK</span></div>
+              <div class="comms-row"><span class="comms-l">BER</span><span class="comms-v" id="dl-ber">2.4e-8</span></div>
+            </div>
+            <div class="comms-section">
+              <div class="comms-section-title">Uplink</div>
+              <div class="comms-row"><span class="comms-l">Rate</span><span class="comms-v on">512 kbps</span></div>
+              <div class="comms-row"><span class="comms-l">Carrier</span><span class="comms-v">2067.5 MHz</span></div>
+            </div>
+            <div class="comms-section">
+              <div class="comms-section-title">Schedule</div>
+              <div class="comms-row"><span class="comms-l" id="sched-1-sta">GOLDSTONE</span><span class="comms-v on" id="sched-1-t">AOS NOW</span></div>
+              <div class="comms-row"><span class="comms-l" id="sched-2-sta">MADRID</span><span class="comms-v" id="sched-2-t">+35 min</span></div>
+              <div class="comms-row"><span class="comms-l" id="sched-3-sta">CANBERRA</span><span class="comms-v" id="sched-3-t">+67 min</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ground Track -->
+        <div class="panel ov-groundtrack">
+          <div class="ph">
+            <span class="ph-title">Ground Track</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="pb" style="display:flex">
+            <canvas id="groundtrack-canvas"></canvas>
+          </div>
+        </div>
+
+      </div><!-- .ov-grid -->
+    </div><!-- #page-overview -->
+
+
+    <!-- ══════════════════════════════════════════════════════════
+         PAGE 2 — ATTITUDE & ORBIT
+    ══════════════════════════════════════════════════════════ -->
+    <div id="page-attitude" class="page hidden">
+      <div class="att-grid">
+
+        <!-- Attitude Indicator (ADI) -->
+        <div class="panel att-adi">
+          <div class="ph">
+            <span class="ph-title">Attitude Indicator</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="adi-body">
+            <canvas id="adi-canvas" width="200" height="200"></canvas>
+            <div class="adi-vals">
+              <div class="av-row"><span class="av-l">ROLL</span><span class="av-v" id="adi-roll">0.001°</span></div>
+              <div class="av-row"><span class="av-l">PITCH</span><span class="av-v" id="adi-pitch">0.002°</span></div>
+              <div class="av-row"><span class="av-l">YAW</span><span class="av-v" id="adi-yaw">-0.001°</span></div>
+              <div class="av-row"><span class="av-l">ω ROLL</span><span class="av-v" id="adi-rr">0.0002 °/s</span></div>
+              <div class="av-row"><span class="av-l">ω PITCH</span><span class="av-v" id="adi-pr">0.0001 °/s</span></div>
+              <div class="av-row"><span class="av-l">ω YAW</span><span class="av-v" id="adi-yr">0.0001 °/s</span></div>
+              <div class="quat-disp" id="adi-quat">q[ 1.0000  0.0000  0.0000  0.0000 ]</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Orbit Visualization (Three.js) -->
+        <div class="panel att-orbit-viz">
+          <div class="ph">
+            <span class="ph-title">Orbit Visualization</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="pb" style="display:flex">
+            <canvas id="orbit-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Orbit Parameters -->
+        <div class="panel att-orbit-params">
+          <div class="ph">
+            <span class="ph-title">Orbit Parameters</span>
+            <span class="ph-sub" id="epoch-label">EPOCH 2025-176T13:42Z</span>
+          </div>
+          <div class="orb-params-body" id="orbit-params-content">
+            <div class="op-row"><span class="op-l">Semi-major Axis</span><span class="op-v">6778.1 km</span></div>
+            <div class="op-row"><span class="op-l">Eccentricity</span><span class="op-v">0.000132</span></div>
+            <div class="op-row"><span class="op-l">Inclination</span><span class="op-v">51.60°</span></div>
+            <div class="op-row"><span class="op-l">RAAN</span><span class="op-v" id="op-raan">180.2°</span></div>
+            <div class="op-row"><span class="op-l">Arg Perigee</span><span class="op-v">0.00°</span></div>
+            <div class="op-row"><span class="op-l">True Anomaly</span><span class="op-v" id="op-ta">0.0°</span></div>
+            <div class="op-row"><span class="op-l">Altitude</span><span class="op-v" id="op-alt">408.0 km</span></div>
+            <div class="op-row"><span class="op-l">Period</span><span class="op-v">92.68 min</span></div>
+            <div class="op-row"><span class="op-l">Ground Speed</span><span class="op-v">7.66 km/s</span></div>
+            <div class="op-row"><span class="op-l">Orbit #</span><span class="op-v" id="op-orb">0142</span></div>
+          </div>
+        </div>
+
+        <!-- Orbit Shape -->
+        <div class="panel att-orbit-shape">
+          <div class="ph">
+            <span class="ph-title">Orbit Shape</span>
+          </div>
+          <div class="pb" style="display:flex;align-items:center;justify-content:center">
+            <canvas id="orbit-shape-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Attitude History (strip chart) -->
+        <div class="panel att-att-history">
+          <div class="ph">
+            <span class="ph-title">Attitude History — Euler Angles (deg)</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="pb" style="display:flex">
+            <canvas id="ch-angles"></canvas>
+          </div>
+        </div>
+
+        <!-- Reaction Wheel Status -->
+        <div class="panel att-rw-status">
+          <div class="ph">
+            <span class="ph-title">Reaction Wheel Status</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="rw-body">
+            <table class="rw-table">
+              <thead>
+                <tr>
+                  <th>Wheel</th>
+                  <th>RPM</th>
+                  <th>Sat%</th>
+                  <th>Duty</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="rw-tbody">
+                <tr><td class="rw-name">RW-1</td><td class="green" id="rw1-rpm">3240</td><td id="rw1-sat">64.8</td><td id="rw1-duty">22%</td><td class="green">NOM</td></tr>
+                <tr><td class="rw-name">RW-2</td><td class="green" id="rw2-rpm">-2810</td><td id="rw2-sat">56.2</td><td id="rw2-duty">18%</td><td class="green">NOM</td></tr>
+                <tr><td class="rw-name">RW-3</td><td class="green" id="rw3-rpm">1950</td><td id="rw3-sat">39.0</td><td id="rw3-duty">14%</td><td class="green">NOM</td></tr>
+                <tr><td class="rw-name">RW-4</td><td class="green" id="rw4-rpm">4100</td><td id="rw4-sat">82.0</td><td id="rw4-duty">31%</td><td class="green">NOM</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Upcoming Passes -->
+        <div class="panel att-passes">
+          <div class="ph">
+            <span class="ph-title">Upcoming Passes</span>
+          </div>
+          <div class="passes-body" id="passes-content">
+            <div class="pass-row">
+              <div class="pass-sta">GOLDSTONE DSN</div>
+              <div class="pass-times">
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass1-aos">NOW</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass1-los">+12 min</span></span>
+              </div>
+              <div class="pass-el" id="pass1-el">MAX EL 72.4°</div>
+            </div>
+            <div class="pass-row">
+              <div class="pass-sta">MADRID DSN</div>
+              <div class="pass-times">
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass2-aos">+35 min</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass2-los">+47 min</span></span>
+              </div>
+              <div class="pass-el">MAX EL 31.2°</div>
+            </div>
+            <div class="pass-row">
+              <div class="pass-sta">CANBERRA DSN</div>
+              <div class="pass-times">
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass3-aos">+67 min</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass3-los">+79 min</span></span>
+              </div>
+              <div class="pass-el">MAX EL 44.8°</div>
+            </div>
+            <div class="pass-row">
+              <div class="pass-sta">GOLDSTONE DSN</div>
+              <div class="pass-times">
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v">+97 min</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v">+110 min</span></span>
+              </div>
+              <div class="pass-el">MAX EL 58.1°</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Orbit Ground Track -->
+        <div class="panel att-groundtrack2">
+          <div class="ph">
+            <span class="ph-title">Orbit Ground Track</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="pb" style="display:flex">
+            <canvas id="groundtrack2-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Altitude Profile -->
+        <div class="panel att-alt-profile">
+          <div class="ph">
+            <span class="ph-title">Orbit Altitude Profile</span>
+            <span class="live-badge">LIVE</span>
+          </div>
+          <div class="pb" style="display:flex">
+            <canvas id="alt-profile-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- Attitude Alerts -->
+        <div class="panel att-att-alerts">
+          <div class="ph">
+            <span class="ph-title">Attitude Alerts</span>
+            <span class="ph-sub" id="alert-count">0 ACTIVE</span>
+          </div>
+          <div class="alerts-body" id="alerts-content">
+            <div class="alert-empty">NO ACTIVE ALERTS — NOMINAL OPS</div>
+          </div>
+        </div>
+
+      </div><!-- .att-grid -->
+    </div><!-- #page-attitude -->
+
+  </main>
+</div><!-- #app -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 1 JAVASCRIPT — nav, UTC clock, MET counter
+     (Three.js + telemetry added in Phase 2)
+═══════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Sidebar navigation ─────────────────────────────────────────
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+  item.addEventListener('click', () => {
+    // Update nav active state
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+
+    // Swap visible page
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    const target = document.getElementById('page-' + item.dataset.page);
+    if (target) target.classList.remove('hidden');
   });
-
-  charts.rates = new StripChart(document.getElementById('ch-rates'), {
-    channels: [
-      { id:'ATT_ROLLRATE',  label:'ωR',  color:'#ff5555' },
-      { id:'ATT_PITCHRATE', label:'ωP',  color:'#44ff99' },
-      { id:'ATT_YAWRATE',   label:'ωY',  color:'#4499ff' },
-    ],
-    yMin:-0.012, yMax:0.012, unit:'°/s',
-    gridLines:[{y:0,color:'rgba(255,255,255,0.08)'}],
-  });
-
-  charts.power = new StripChart(document.getElementById('ch-power'), {
-    channels: [
-      { id:'PWR_SOLAR_A',  label:'SOL-A', color:'#ffcc22' },
-      { id:'PWR_SOLAR_B',  label:'SOL-B', color:'#ff8822' },
-      { id:'PWR_ADCS_DRAW',label:'ADCS',  color:'#cc44ff' },
-      { id:'PWR_BUS_LOAD', label:'BUS',   color:'#ff4488' },
-    ],
-    yMin:0, yMax:320, unit:'W',
-  });
-
-  charts.prop = new StripChart(document.getElementById('ch-prop'), {
-    channels: [
-      { id:'PROP_TANK_PRESS', label:'PRESS', color:'#00ccff' },
-    ],
-    yMin:288, yMax:315, unit:'psi',
-  });
-
-  charts.rw = new StripChart(document.getElementById('ch-rw'), {
-    channels: [
-      { id:'RW1_SPEED', label:'RW1', color:'#ff5555' },
-      { id:'RW2_SPEED', label:'RW2', color:'#44ff99' },
-      { id:'RW3_SPEED', label:'RW3', color:'#4499ff' },
-      { id:'RW4_SPEED', label:'RW4', color:'#ffcc22' },
-    ],
-    yMin:-3200, yMax:4600, unit:'RPM',
-  });
-
-  charts.flow = new StripChart(document.getElementById('ch-flow'), {
-    channels: [
-      { id:'PROP_V3_FLOW', label:'V3', color:'#ff3300' },
-      { id:'PROP_V4_FLOW', label:'V4', color:'#ff9944' },
-      { id:'PROP_V8_FLOW', label:'V8', color:'#ffcc66' },
-      { id:'PROP_V1_FLOW', label:'V1', color:'#336688' },
-    ],
-    yMin:-0.02, yMax:1.0, unit:'sccm',
-    gridLines:[{y:0,color:'rgba(255,255,255,0.08)'}],
-  });
-
-  charts.therm = new StripChart(document.getElementById('ch-therm'), {
-    channels: [
-      { id:'THERM_BATT',      label:'BATT',  color:'#ffcc22' },
-      { id:'THERM_PROP_LINE', label:'PROP',  color:'#00ccff' },
-      { id:'THERM_PANEL_A',   label:'PNL-A', color:'#ff5599' },
-    ],
-    yMin:-28, yMax:22, unit:'°C',
-    gridLines:[{y:0,color:'rgba(255,255,255,0.06)'}],
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MAIN LOOP
-// ═══════════════════════════════════════════════════════════════
-const tm  = new TelemetryEngine();
-let   lastTick = performance.now();
-let   orbitAngle = 0;
-const ORBIT_SPEED = (2*Math.PI) / 90; // one orbit per 90s wall time
-const SAT_OB = 2.18;
-
-function animate(now) {
-  requestAnimationFrame(animate);
-
-  const dt  = Math.min((now - lastTick) / 1000, 0.1);
-  lastTick  = now;
-
-  // telemetry ticks at 2 Hz — accumulate partial seconds
-  animate._acc = (animate._acc||0) + dt;
-  while (animate._acc >= 0.5) {
-    tm.tick(0.5);
-    animate._acc -= 0.5;
-  }
-
-  // ── update satellite attitude ──────────────────────────────
-  if (satScene && satScene.userData.pivot) {
-    const p = satScene.userData.pivot;
-    const ROLL  = THREE.MathUtils.degToRad(tm.val.ATT_ROLL);
-    const PITCH = THREE.MathUtils.degToRad(tm.val.ATT_PITCH);
-    const YAW   = THREE.MathUtils.degToRad(tm.val.ATT_YAW);
-    // slow orbital rotation (1 orbit / 90s)
-    const orbPitch = (2*Math.PI * tm.missionElapsed / 90);
-    p.rotation.set(ROLL + orbPitch * 0.003, YAW, PITCH, 'ZYX');
-  }
-
-  // ── orbit viewer ──────────────────────────────────────────
-  orbitAngle += ORBIT_SPEED * dt;
-  if (earthMesh) earthMesh.rotation.y += 0.002 * dt;
-  if (satDot) {
-    satDot.position.set(
-      Math.cos(orbitAngle) * SAT_OB,
-      Math.sin(orbitAngle) * SAT_OB,
-      0.05
-    );
-  }
-
-  // ── render Three.js scenes ────────────────────────────────
-  if (satRenderer)   satRenderer.render(satScene, satCamera);
-  if (orbitRenderer) orbitRenderer.render(orbitScene, orbitCamera);
-
-  // ── redraw strip charts ───────────────────────────────────
-  for (const ch of Object.values(charts)) ch.draw(tm);
-
-  // ── update HTML panels ────────────────────────────────────
-  updateHeader(tm);
-  updateSubsysPanel(tm);
-  updatePayloadPanel(tm);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// KEY HANDLER
-// ═══════════════════════════════════════════════════════════════
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'f' || e.key === 'F') {
-    e.preventDefault();
-    tm.injectFault();
-  }
 });
 
-// ═══════════════════════════════════════════════════════════════
-// BOOT
-// ═══════════════════════════════════════════════════════════════
-window.addEventListener('load', () => {
-  // size all canvases
-  ['sat-canvas','orbit-canvas',
-   'ch-angles','ch-rates','ch-power','ch-prop',
-   'ch-rw','ch-flow','ch-therm'].forEach(id => sizeCanvas(document.getElementById(id)));
+// ── UTC clock ──────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const pad = (n, w=2) => String(n).padStart(w, '0');
+  document.getElementById('utc-clock').textContent =
+    `${now.getUTCFullYear()}-${pad(now.getUTCMonth()+1)}-${pad(now.getUTCDate())} ` +
+    `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
 
-  buildSubsysPanel();
-  buildPayloadPanel();
-  initCharts();
-  initSatViewer();
-  initOrbitViewer();
+// ── MET counter (simple ticker — full physics engine in Phase 2) ─
+let metSec = 0;
+function updateMET() {
+  metSec++;
+  const h = String(Math.floor(metSec / 3600)).padStart(3, '0');
+  const m = String(Math.floor((metSec % 3600) / 60)).padStart(2, '0');
+  const s = String(metSec % 60).padStart(2, '0');
+  const metStr = `${h}:${m}:${s}`;
+  document.getElementById('met').textContent     = metStr;
+  document.getElementById('sb-met').textContent  = 'MET ' + metStr;
+  document.getElementById('orb-count').textContent =
+    String(142 + Math.floor(metSec / 5400)).padStart(4, '0');
+  document.getElementById('op-orb').textContent  =
+    String(142 + Math.floor(metSec / 5400)).padStart(4, '0');
+}
+setInterval(updateMET, 1000);
 
-  // pre-fill 120s of nominal history so charts start full
-  for (let i = 0; i < 240; i++) tm.tick(0.5);
-
-  requestAnimationFrame(animate);
+// ── Fault injection key hint ───────────────────────────────────
+document.getElementById('fault-btn').addEventListener('click', () => {
+  // Wired to TelemetryEngine in Phase 2; notify user for now
+  console.info('[SSL-1] Fault injection wired in Phase 2.');
 });
+
+// ── Ground station cycle placeholder ─────────────────────────
+const STATIONS = ['GOLDSTONE','MADRID','CANBERRA'];
+setInterval(() => {
+  const idx = Math.floor(metSec / 150) % 3;
+  const aos = (Math.floor(metSec / 150) % 2 === 0);
+  document.getElementById('gs-name').textContent = STATIONS[idx];
+}, 3000);
 </script>
+
 </body>
 </html>
