@@ -367,38 +367,50 @@ body { display:flex; }
 ═══════════════════════════════════════════════════════════════ */
 
 /* Status rows (spacecraft overview + subsystems) */
+/* Spacecraft Overview — canvas fills panel, status overlays at bottom */
 .sc-body {
-  display:flex; flex:1; min-height:0; overflow:hidden;
+  flex:1; min-height:0; position:relative; overflow:hidden;
+}
+.sc-canvas-wrap {
+  position:absolute; inset:0;
 }
 #sat-canvas {
-  flex:0 0 56%; height:100%; display:block;
+  width:100%; height:100%; display:block;
 }
+/* HUD overlay strip — two rows of 4 items each, bottom of panel */
 #sc-status-list {
-  flex:1; padding:6px 8px; overflow-y:auto;
+  position:absolute; bottom:0; left:0; right:0;
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:0;
+  background:linear-gradient(to top, rgba(5,8,22,0.90) 0%, rgba(5,8,22,0.6) 75%, transparent 100%);
+  padding:8px 6px 8px;
+  pointer-events:none;
 }
-#sc-status-list::-webkit-scrollbar{width:3px}
-#sc-status-list::-webkit-scrollbar-thumb{background:var(--panel-border)}
-
 .sc-row {
-  display:flex; align-items:center; gap:7px;
-  padding:5px 0; border-bottom:1px solid var(--panel-border-dim);
+  display:flex; align-items:center; gap:4px;
+  padding:2px 5px 2px 5px;
+  border-left:1px solid rgba(26,48,85,0.5);
+  overflow:hidden;
 }
+.sc-row:nth-child(4n+1) { border-left:none; }
 .sc-dot {
-  width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  width:5px; height:5px; border-radius:50%; flex-shrink:0;
 }
-.sc-dot.nom  { background:var(--status-nom);  box-shadow:0 0 5px var(--status-nom); }
-.sc-dot.warn { background:var(--status-warn); box-shadow:0 0 5px var(--status-warn); }
-.sc-dot.crit { background:var(--status-crit); box-shadow:0 0 5px var(--status-crit); }
+.sc-dot.nom  { background:var(--status-nom);  box-shadow:0 0 4px var(--status-nom); }
+.sc-dot.warn { background:var(--status-warn); box-shadow:0 0 4px var(--status-warn); }
+.sc-dot.crit { background:var(--status-crit); box-shadow:0 0 4px var(--status-crit); }
 .sc-label {
-  flex:1; font-size:9.5px; letter-spacing:1px;
-  color:var(--text-dim); text-transform:uppercase;
+  font-size:8px; letter-spacing:0.6px;
+  color:rgba(58,85,112,1); text-transform:uppercase; white-space:nowrap;
+  flex-shrink:0;
 }
 .sc-val {
   font-family:var(--font-mono);
-  font-size:10px; color:var(--text-mono);
+  font-size:9.5px; color:var(--text-mono); margin-left:auto; white-space:nowrap;
 }
 .sc-badge {
-  font-size:9px; letter-spacing:1px; font-weight:700;
+  font-size:7.5px; letter-spacing:0.6px; font-weight:700; margin-left:2px;
 }
 .sc-badge.nom  { color:var(--status-nom); }
 .sc-badge.warn { color:var(--status-warn); }
@@ -819,16 +831,18 @@ body { display:flex; }
             <span class="live-badge">LIVE</span>
           </div>
           <div class="sc-body">
-            <canvas id="sat-canvas"></canvas>
+            <div class="sc-canvas-wrap">
+              <canvas id="sat-canvas"></canvas>
+            </div>
             <div id="sc-status-list">
-              <!-- Populated by Phase 2+ JS; static placeholders for Phase 1 -->
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Bus Voltage</span><span class="sc-val">28.14 V</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Power Output</span><span class="sc-val">299.9 W</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Temperature</span><span class="sc-val">14.1 °C</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Attitude</span><span class="sc-val">0.003°</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Propulsion</span><span class="sc-val">312.4 psi</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Solar Load</span><span class="sc-val">82.4 %</span><span class="sc-badge nom">NOMINAL</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Payload Load</span><span class="sc-val">847 mW</span><span class="sc-badge nom">NOMINAL</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Bus V</span><span class="sc-val" id="sc-busv">28.14 V</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Power</span><span class="sc-val" id="sc-pwr">299.9 W</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Batt SOC</span><span class="sc-val" id="sc-soc">82.4 %</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">OBC Temp</span><span class="sc-val" id="sc-temp">22.4 °C</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Roll</span><span class="sc-val" id="sc-roll">0.003°</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Pitch</span><span class="sc-val" id="sc-pitch">0.001°</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Tank Pres</span><span class="sc-val" id="sc-pres">312.4 psi</span></div>
+              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Altitude</span><span class="sc-val" id="sc-alt">408.0 km</span></div>
             </div>
           </div>
         </div>
@@ -1221,17 +1235,19 @@ document.querySelectorAll('.nav-item[data-page]').forEach(item => {
     const target = document.getElementById('page-' + item.dataset.page);
     if (target) target.classList.remove('hidden');
 
-    // Re-fit orbit renderer once its canvas is actually visible
-    if (item.dataset.page === 'attitude' && orbitRenderer) {
-      const c = document.getElementById('orbit-canvas');
-      if (c) {
-        sizeCanvas(c);
-        orbitRenderer.setSize(c._cssW, c._cssH, false);
-        if (orbitCamera) {
-          orbitCamera.aspect = c._cssW / c._cssH;
-          orbitCamera.updateProjectionMatrix();
+    // Size all attitude-page fluid canvases on first navigation to that page
+    if (item.dataset.page === 'attitude') {
+      ['orbit-canvas','orbit-shape-canvas','adi-canvas',
+       'ch-angles','alt-profile-canvas','groundtrack2-canvas'
+      ].forEach(id => { const c=document.getElementById(id); if(c) sizeCanvas(c); });
+      // Re-fit Three.js orbit renderer to canvas
+      if (orbitRenderer) {
+        const c = document.getElementById('orbit-canvas');
+        if (c) {
+          orbitRenderer.setSize(c._cssW, c._cssH, false);
+          if (orbitCamera) { orbitCamera.aspect=c._cssW/c._cssH; orbitCamera.updateProjectionMatrix(); }
+          orbitRenderer.render(orbitScene, orbitCamera);
         }
-        orbitRenderer.render(orbitScene, orbitCamera);
       }
     }
   });
@@ -1563,8 +1579,8 @@ function initSatViewer() {
   satScene = new THREE.Scene();
   satScene.background = new THREE.Color(0x02020f);
 
-  satCamera = new THREE.PerspectiveCamera(45, W/H, 0.01, 2000);
-  satCamera.position.set(3.5, 1.8, 4.5);
+  satCamera = new THREE.PerspectiveCamera(42, W/H, 0.01, 2000);
+  satCamera.position.set(0, 0.4, 5.5);
   satCamera.lookAt(0, 0, 0);
 
   // Stars
@@ -1595,28 +1611,39 @@ function initSatViewer() {
   loader.load('Hubble.glb',
     (gltf) => {
       const model = gltf.scene;
-      model.scale.setScalar(0.8);
       pivot.add(model);
+      // Auto-fit: measure bounding box after adding to scene so transforms apply
+      const box    = new THREE.Box3().setFromObject(pivot);
+      const size   = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fovRad = satCamera.fov * Math.PI / 180;
+      // Pull camera back 1.5× the distance needed to fit maxDim in frame
+      const dist   = (maxDim / 2) / Math.tan(fovRad / 2) * 1.55;
+      satCamera.position.set(center.x, center.y + size.y * 0.12, center.z + dist);
+      satCamera.lookAt(center);
+      satCamera.updateProjectionMatrix();
     },
     undefined,
-    () => buildProceduralSat(pivot)   // fallback on error
+    (err) => { console.warn('Hubble.glb load failed, using procedural fallback:', err); buildProceduralSat(pivot); }
   );
 }
 
 function buildProceduralSat(pivot) {
-  const gold = new THREE.MeshPhongMaterial({ color:0xc8a000, shininess:60 });
-  const blue = new THREE.MeshPhongMaterial({ color:0x1144aa, emissive:0x001133 });
-  const grey = new THREE.MeshPhongMaterial({ color:0xa0a0a0 });
-  // body
-  pivot.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,1.6,16), gold)));
-  // solar panels
-  [-1.6, 1.6].forEach(x => {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.04,0.9), blue);
+  const gold = new THREE.MeshPhongMaterial({ color:0xc8a000, shininess:80 });
+  const blue = new THREE.MeshPhongMaterial({ color:0x1a55cc, emissive:0x001133 });
+  const grey = new THREE.MeshPhongMaterial({ color:0xb0b8c0 });
+  // body — compact cylinder centered at origin
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.2, 16), gold);
+  pivot.add(body);
+  // solar panels — ±0.95 from centre, narrow chord so total span ≈ ±1.75
+  [-0.95, 0.95].forEach(x => {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.04, 0.7), blue);
     p.position.set(x, 0, 0); pivot.add(p);
   });
-  // dish
-  const dish = new THREE.Mesh(new THREE.ConeGeometry(0.28,0.45,12), grey);
-  dish.rotation.x = Math.PI; dish.position.set(0,1.1,0); pivot.add(dish);
+  // dish — top of body
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.36, 12), grey);
+  dish.rotation.x = Math.PI; dish.position.set(0, 0.78, 0); pivot.add(dish);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1767,6 +1794,398 @@ function updateHeader(tm) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// EARTH IMAGE  (loaded once; used in ground track background)
+// ═══════════════════════════════════════════════════════════════
+let earthImg = null;
+{ const img=new Image(); img.onload=()=>{earthImg=img}; img.src='Earth_Blue_Marble.jpg'; }
+
+// ═══════════════════════════════════════════════════════════════
+// STRIP CHART  (scrolling 2-Hz telemetry time series)
+// ═══════════════════════════════════════════════════════════════
+class StripChart {
+  constructor(canvas, {series=[],yMin=-5,yMax=5}={}) {
+    this.cv=canvas; this.cx=canvas.getContext('2d');
+    this.series=series; this.yMin=yMin; this.yMax=yMax;
+  }
+  draw(tm) {
+    const {cv,cx,series,yMin,yMax}=this;
+    const W=cv.width,H=cv.height; if(!W||!H) return;
+    cx.fillStyle='#02040e'; cx.fillRect(0,0,W,H);
+    for(let i=0;i<=4;i++){
+      const y=H*i/4;
+      cx.strokeStyle='rgba(0,180,100,0.09)'; cx.lineWidth=0.5;
+      cx.beginPath(); cx.moveTo(0,y); cx.lineTo(W,y); cx.stroke();
+      cx.fillStyle='rgba(58,85,112,0.65)'; cx.font='8px monospace'; cx.textAlign='left';
+      cx.fillText((yMax-(yMax-yMin)*i/4).toFixed(1),2,y+9);
+    }
+    if(yMin<0&&yMax>0){
+      const zy=H*(yMax/(yMax-yMin));
+      cx.strokeStyle='rgba(0,200,100,0.22)'; cx.lineWidth=0.8;
+      cx.beginPath(); cx.moveTo(0,zy); cx.lineTo(W,zy); cx.stroke();
+    }
+    series.forEach(s=>{
+      const data=tm.hist[s.key]; if(!data||data.length<2) return;
+      cx.beginPath(); cx.strokeStyle=s.color; cx.lineWidth=s.w||1.5;
+      const step=W/(data.length-1);
+      data.forEach((v,i)=>{
+        const x=i*step,y=H-(v-yMin)/(yMax-yMin)*H;
+        i===0?cx.moveTo(x,y):cx.lineTo(x,y);
+      });
+      cx.stroke();
+      if(s.label){
+        const last=data[data.length-1];
+        const ly=Math.max(10,Math.min(H-4,H-(last-yMin)/(yMax-yMin)*H-3));
+        cx.fillStyle=s.color; cx.font='8px monospace'; cx.textAlign='right';
+        cx.fillText(s.label,W-2,ly);
+      }
+    });
+  }
+}
+let chAngles=null, chAttMini=null;
+
+function initCharts() {
+  const ca=document.getElementById('ch-angles');
+  if(ca) chAngles=new StripChart(ca,{
+    series:[
+      {key:'ATT_ROLL', color:'#00c8f0',label:'ROLL', w:1.8},
+      {key:'ATT_PITCH',color:'#ffc800',label:'PITCH',w:1.5},
+      {key:'ATT_YAW',  color:'#cc44ff',label:'YAW',  w:1.2},
+    ],yMin:-10,yMax:10
+  });
+  const cm=document.getElementById('att-mini-chart');
+  if(cm) chAttMini=new StripChart(cm,{
+    series:[{key:'ATT_ROLL',color:'#00c8f0',label:'',w:1.5}],
+    yMin:-5,yMax:5
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADI  (Attitude Direction Indicator)
+// ═══════════════════════════════════════════════════════════════
+function drawADI(canvas, roll, pitch) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const cx=W/2,cy=H/2,R=Math.min(W,H)/2-4;
+  ctx.clearRect(0,0,W,H);
+  // Clip to circle
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+  // Roll rotation
+  ctx.save();
+  ctx.translate(cx,cy); ctx.rotate(-roll*Math.PI/180);
+  const pp=pitch*2.6;
+  // Sky / Ground
+  ctx.fillStyle='#1b4e9a'; ctx.fillRect(-R,-R*2-pp,R*2,R*2);
+  ctx.fillStyle='#5c3010'; ctx.fillRect(-R,-pp,R*2,R*2);
+  // Horizon
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-R,-pp); ctx.lineTo(R,-pp); ctx.stroke();
+  // Pitch ladder
+  [5,10,15,20].forEach(d=>[-d,d].forEach(deg=>{
+    const y=-pp-deg*2.6,hl=deg>=15?38:deg>=10?26:15;
+    ctx.strokeStyle='rgba(255,255,255,0.65)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(-hl,y); ctx.lineTo(hl,y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-hl,y); ctx.lineTo(-hl,y+(deg>0?5:-5)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hl,y);  ctx.lineTo(hl, y+(deg>0?5:-5)); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font='9px monospace'; ctx.textAlign='right';
+    ctx.fillText(`${deg>0?'+':''}${deg}`,-hl-4,y+4);
+  }));
+  ctx.restore();
+  // Fixed aircraft symbol (not rolled)
+  ctx.strokeStyle='#ffc800'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(cx-R*.44,cy); ctx.lineTo(cx-R*.10,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+R*.10,cy); ctx.lineTo(cx+R*.44,cy); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fillStyle='#ffc800'; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(cx,cy+7); ctx.lineTo(cx,cy+17); ctx.strokeStyle='#ffc800'; ctx.stroke();
+  ctx.restore();
+  // Bezel
+  ctx.strokeStyle='#0c1a2e'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.arc(cx,cy,R+2,0,Math.PI*2); ctx.stroke();
+  // Roll-scale ticks
+  [10,20,30,45,60].forEach(d=>[-d,d].forEach(ang=>{
+    const a=(ang-90)*Math.PI/180,r1=R-2,r2=R-10;
+    ctx.strokeStyle='#2a4060'; ctx.lineWidth=1.2;
+    ctx.beginPath();
+    ctx.moveTo(cx+r1*Math.cos(a),cy+r1*Math.sin(a));
+    ctx.lineTo(cx+r2*Math.cos(a),cy+r2*Math.sin(a));
+    ctx.stroke();
+  }));
+  // Roll pointer triangle
+  const rPtr=(-90-roll)*Math.PI/180,pr=R-4,ps=8;
+  ctx.fillStyle='#ffc800'; ctx.beginPath();
+  ctx.moveTo(cx+pr*Math.cos(rPtr),cy+pr*Math.sin(rPtr));
+  ctx.lineTo(cx+(pr+ps)*Math.cos(rPtr-.13),cy+(pr+ps)*Math.sin(rPtr-.13));
+  ctx.lineTo(cx+(pr+ps)*Math.cos(rPtr+.13),cy+(pr+ps)*Math.sin(rPtr+.13));
+  ctx.closePath(); ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ARC GAUGE  (reused for battery SOC and signal strength)
+// ═══════════════════════════════════════════════════════════════
+function drawArcGauge(canvas, pct, label) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const cx=W/2,cy=H*.56,R=Math.min(W*.40,H*.47);
+  const lw=Math.max(6,Math.round(R*.22));
+  const startA=225*Math.PI/180,sweep=270*Math.PI/180;
+  const color=pct>60?'#00de78':pct>30?'#ffc800':'#ff3c3c';
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#020510'; ctx.fillRect(0,0,W,H);
+  ctx.beginPath(); ctx.arc(cx,cy,R,startA,startA+sweep);
+  ctx.strokeStyle='#0d1c30'; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.stroke();
+  if(pct>0){
+    ctx.beginPath(); ctx.arc(cx,cy,R,startA,startA+sweep*(pct/100));
+    ctx.strokeStyle=color; ctx.lineWidth=lw; ctx.lineCap='round'; ctx.stroke();
+  }
+  ctx.fillStyle='#c8d8ec'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`bold ${Math.round(R*.52)}px Inter,sans-serif`;
+  ctx.fillText(Math.round(pct)+'%',cx,cy-R*.06);
+  ctx.fillStyle='#3a5570'; ctx.textBaseline='alphabetic';
+  ctx.font=`${Math.round(R*.22)}px Inter,sans-serif`;
+  ctx.fillText(label,cx,cy+R*.46);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ORBIT MINI  (bird's-eye 2D schematic, overview page)
+// ═══════════════════════════════════════════════════════════════
+function drawOrbitMini(canvas, tm) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const cx=W/2,cy=H/2,md=Math.min(W,H);
+  const eR=md*.27,oR=md*.43;
+  ctx.fillStyle='#030815'; ctx.fillRect(0,0,W,H);
+  const eg=ctx.createRadialGradient(cx-eR*.2,cy-eR*.2,1,cx,cy,eR);
+  eg.addColorStop(0,'#2255aa'); eg.addColorStop(1,'#041020');
+  ctx.beginPath(); ctx.arc(cx,cy,eR,0,Math.PI*2); ctx.fillStyle=eg; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,eR+2,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,100,200,0.35)'; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,oR,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,200,240,0.45)'; ctx.lineWidth=1.5;
+  ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+  const ta=tm.trueAnomaly*Math.PI/180;
+  const sx=cx+Math.cos(ta-Math.PI/2)*oR,sy=cy+Math.sin(ta-Math.PI/2)*oR;
+  const p=.5+.5*Math.sin(Date.now()/400);
+  ctx.beginPath(); ctx.arc(sx,sy,7+p*4,0,Math.PI*2);
+  ctx.fillStyle=`rgba(255,220,40,${.13*p})`; ctx.fill();
+  ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fillStyle='#ffe040'; ctx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ORBIT SHAPE  (tilted 2D ellipse, attitude page)
+// ═══════════════════════════════════════════════════════════════
+function drawOrbitShape(canvas, tm) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const cx=W/2,cy=H/2,md=Math.min(W,H);
+  const eR=md*.17,aR=md*.40,bR=aR*.60;
+  ctx.fillStyle='#030815'; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.translate(cx,cy);
+  ctx.rotate(tm.inclination*.35*Math.PI/180);
+  ctx.beginPath(); ctx.ellipse(0,0,aR,bR,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba(0,200,240,0.4)'; ctx.lineWidth=1.5; ctx.stroke();
+  const ta=tm.trueAnomaly*Math.PI/180;
+  ctx.fillStyle='#ffe040';
+  ctx.beginPath(); ctx.arc(Math.cos(ta)*aR,Math.sin(ta)*bR,3.5,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(0,200,240,0.4)'; ctx.font='8px monospace'; ctx.textAlign='center';
+  ctx.fillText('APO',0,-(bR+8)); ctx.fillText('PER',0,bR+14);
+  ctx.restore();
+  const eg=ctx.createRadialGradient(cx-eR*.2,cy-eR*.2,1,cx,cy,eR);
+  eg.addColorStop(0,'#2255aa'); eg.addColorStop(1,'#041020');
+  ctx.beginPath(); ctx.arc(cx,cy,eR,0,Math.PI*2); ctx.fillStyle=eg; ctx.fill();
+  ctx.fillStyle='rgba(58,85,112,0.6)'; ctx.font='8px monospace'; ctx.textAlign='left';
+  ctx.fillText(`INC ${tm.inclination.toFixed(1)}°`,4,H-4);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GROUND TRACK  (Earth image bg + orbit line + stations)
+// ═══════════════════════════════════════════════════════════════
+function drawGroundTrack(canvas, tm) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  ctx.fillStyle='#030815'; ctx.fillRect(0,0,W,H);
+  if(earthImg){ ctx.globalAlpha=.35; ctx.drawImage(earthImg,0,0,W,H); ctx.globalAlpha=1; }
+  ctx.fillStyle='rgba(5,15,35,.55)'; ctx.fillRect(0,0,W,H);
+  const proj=(lat,lon)=>({x:(lon+180)/360*W,y:(90-lat)/180*H});
+  // Lat/lon grid
+  ctx.strokeStyle='rgba(0,180,100,.12)'; ctx.lineWidth=.5;
+  for(let lat=-90;lat<=90;lat+=30){
+    ctx.beginPath(); ctx.moveTo(0,(90-lat)/180*H); ctx.lineTo(W,(90-lat)/180*H); ctx.stroke();
+  }
+  for(let lon=-180;lon<=180;lon+=30){
+    ctx.beginPath(); ctx.moveTo((lon+180)/360*W,0); ctx.lineTo((lon+180)/360*W,H); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(0,200,100,.28)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  // Compute track points (−1 orbit … +1 orbit)
+  const INC=51.6*Math.PI/180,T=5568,met=tm.missionElapsed;
+  const pts=[];
+  for(let i=-300;i<=300;i++){
+    const dt=i*T/300, M=(2*Math.PI/T)*(met+dt);
+    const lat=Math.asin(Math.sin(INC)*Math.sin(M))*180/Math.PI;
+    const rawLon=Math.atan2(Math.cos(INC)*Math.sin(M),Math.cos(M));
+    const lon=((rawLon-(2*Math.PI/86400)*(met+dt))*180/Math.PI%360+540)%360-180;
+    pts.push({lat,lon,past:dt<0});
+  }
+  // Draw past / future track segments
+  const drawSeg=(arr,style,dash,lw)=>{
+    ctx.strokeStyle=style; ctx.lineWidth=lw; ctx.setLineDash(dash);
+    let prev=null,open=false; ctx.beginPath();
+    arr.forEach(p=>{
+      if(prev!==null&&Math.abs(p.lon-prev.lon)>150){ctx.stroke();ctx.beginPath();open=false;}
+      const{x,y}=proj(p.lat,p.lon);
+      open?ctx.lineTo(x,y):ctx.moveTo(x,y); open=true; prev=p;
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  drawSeg(pts.filter(p=>p.past), 'rgba(255,200,0,.30)',[3,3],1.5);
+  drawSeg(pts.filter(p=>!p.past),'rgba(255,200,0,.85)',[],   1.8);
+  // Ground stations
+  [{name:'GOLD',lat:35.4,lon:-116.9},{name:'MAD',lat:40.4,lon:-15.5},
+   {name:'CAN',lat:-35.4,lon:148.9}, {name:'HOU',lat:29.8,lon:-95.4}
+  ].forEach(s=>{
+    const{x,y}=proj(s.lat,s.lon),d=4;
+    ctx.strokeStyle='#00c8f0'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x-d,y); ctx.lineTo(x+d,y); ctx.moveTo(x,y-d); ctx.lineTo(x,y+d); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,d,0,Math.PI*2); ctx.strokeStyle='rgba(0,200,240,.45)'; ctx.stroke();
+    ctx.fillStyle='rgba(0,200,240,.75)'; ctx.font='8px monospace'; ctx.textAlign='left';
+    ctx.fillText(s.name,x+6,y+3);
+  });
+  // Current sat position (pts[300] = dt=0)
+  const cur=pts[300];
+  if(cur){
+    const{x,y}=proj(cur.lat,cur.lon),p=.5+.5*Math.sin(Date.now()/600);
+    ctx.beginPath(); ctx.arc(x,y,9+p*5,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(255,220,40,${.22*p})`; ctx.lineWidth=2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,5,0,Math.PI*2); ctx.fillStyle='#ffe040'; ctx.fill();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ALTITUDE PROFILE  (strip chart style, attitude page)
+// ═══════════════════════════════════════════════════════════════
+function drawAltProfile(canvas, tm) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const data=tm.hist.ALTITUDE; if(!data||data.length<2) return;
+  const PL=32,PB=14,PT=4,PR=4,cW=W-PL-PR,cH=H-PT-PB;
+  const YN=405,YX=412;
+  ctx.fillStyle='#02040e'; ctx.fillRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=PT+cH*i/4,v=(YX-(YX-YN)*i/4).toFixed(0);
+    ctx.strokeStyle='rgba(0,180,100,.08)'; ctx.lineWidth=.5;
+    ctx.beginPath(); ctx.moveTo(PL,y); ctx.lineTo(W-PR,y); ctx.stroke();
+    ctx.fillStyle='rgba(58,85,112,.7)'; ctx.font='8px monospace'; ctx.textAlign='right';
+    ctx.fillText(v,PL-2,y+3);
+  }
+  ctx.save(); ctx.translate(10,H/2); ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='rgba(58,85,112,.7)'; ctx.font='8px monospace'; ctx.textAlign='center';
+  ctx.fillText('ALT km',0,0); ctx.restore();
+  ctx.beginPath(); ctx.strokeStyle='#00c8f0'; ctx.lineWidth=1.5;
+  const step=cW/(data.length-1);
+  data.forEach((v,i)=>{
+    const x=PL+i*step,y=PT+cH-(v-YN)/(YX-YN)*cH;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// POWER BAR  (generation vs load, overview power panel)
+// ═══════════════════════════════════════════════════════════════
+function drawPowerBar(canvas, tm) {
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height; if(!W||!H) return;
+  const PAD=6,barH=14,gap=5,lblW=42,MAX=350;
+  const bW=W-PAD*2-lblW-6,x0=PAD+lblW;
+  const y1=PAD+2,y2=y1+barH+gap;
+  const genA=tm.val.PWR_SOLAR_A/MAX,genB=tm.val.PWR_SOLAR_B/MAX;
+  const genT=Math.min(1,genA+genB),loadF=Math.min(1,tm.val.PWR_BUS_LOAD/MAX);
+  ctx.fillStyle='#02040e'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#3a5570'; ctx.font='8px monospace'; ctx.textAlign='right';
+  ctx.fillText('GEN', x0-2,y1+barH-3);
+  ctx.fillText('LOAD',x0-2,y2+barH-3);
+  ctx.fillStyle='#0d1c30'; ctx.fillRect(x0,y1,bW,barH); ctx.fillRect(x0,y2,bW,barH);
+  ctx.fillStyle='#00de78'; ctx.fillRect(x0,y1,bW*genA,barH);
+  ctx.fillStyle='#00a0b0'; ctx.fillRect(x0+bW*genA,y1,bW*(genT-genA),barH);
+  const lclr=loadF>.85?'#ff3c3c':loadF>.65?'#ffc800':'#4488ff';
+  ctx.fillStyle=lclr; ctx.fillRect(x0,y2,bW*loadF,barH);
+  ctx.fillStyle='#7aa8cc'; ctx.font='8px monospace'; ctx.textAlign='left';
+  ctx.fillText((tm.val.PWR_SOLAR_A+tm.val.PWR_SOLAR_B).toFixed(0)+'W',x0+bW*genT+3,y1+barH-3);
+  ctx.fillText(tm.val.PWR_BUS_LOAD.toFixed(0)+'W',x0+bW*loadF+3,y2+barH-3);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UPDATE PANELS  (all text fields, thermal bars, RW, alerts)
+// ═══════════════════════════════════════════════════════════════
+function updatePanels(tm) {
+  const $=id=>document.getElementById(id);
+  const set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  // SC overview HUD
+  set('sc-busv', tm.val.PWR_BATT_V.toFixed(2)+' V');
+  set('sc-pwr',  tm.val.PWR_BUS_LOAD.toFixed(0)+' W');
+  set('sc-soc',  tm.val.PWR_BATT_SOC.toFixed(1)+'%');
+  set('sc-temp', tm.val.THERM_BATT.toFixed(1)+' °C');
+  set('sc-roll', tm.val.ATT_ROLL.toFixed(3)+'°');
+  set('sc-pitch',tm.val.ATT_PITCH.toFixed(3)+'°');
+  set('sc-pres', tm.val.PROP_TANK_PRESS.toFixed(1)+' psi');
+  set('sc-alt',  tm.val.ALTITUDE.toFixed(1)+' km');
+  // Power stats
+  set('pw-sola', tm.val.PWR_SOLAR_A.toFixed(1)+' W');
+  set('pw-solb', tm.val.PWR_SOLAR_B.toFixed(1)+' W');
+  set('pw-load', tm.val.PWR_BUS_LOAD.toFixed(1)+' W');
+  set('pw-battv',tm.val.PWR_BATT_V.toFixed(2)+' V');
+  // Thermal rows
+  const TV={
+    'th-obc':   [tm.val.THERM_BATT+8.3,  22.4],
+    'th-batt':  [tm.val.THERM_BATT,       14.1],
+    'th-prop':  [tm.val.THERM_PROP_LINE,  16.3],
+    'th-solar': [tm.val.THERM_PANEL_A,   -22.4],
+    'th-struct':[tm.val.THERM_BATT+3.1,  17.2],
+    'th-nozzle':[tm.val.ME_NOZZLE_TEMP,  22.4],
+  };
+  for(const[id,[v,nom]]of Object.entries(TV)){
+    const el=$(id); if(!el) continue;
+    const d=Math.abs(v-nom);
+    const cls=d>10?'red':d>5?'yellow':'green';
+    el.className='therm-val '+cls; el.textContent=v.toFixed(1)+' °C';
+    const bar=el.nextElementSibling?.querySelector('.therm-bar-fill');
+    if(bar){
+      bar.style.width=Math.min(100,Math.max(5,(v+40)/80*100))+'%';
+      bar.style.background=cls==='red'?'var(--status-crit)':cls==='yellow'?'var(--status-warn)':'var(--status-nom)';
+    }
+  }
+  // Payloads
+  set('pld-st',tm.val.PLD_SHARK_TEMP.toFixed(2)+' °C');
+  set('pld-sa',tm.val.PLD_SHARK_ACT.toFixed(1)+' %');
+  set('pld-la',tm.val.PLD_LASER_ALIGN.toFixed(4)+' mdeg');
+  set('pld-po',tm.val.PLD_PHOTON_OUT.toFixed(1)+' mW');
+  // Reaction wheels
+  ['RW1_SPEED','RW2_SPEED','RW3_SPEED','RW4_SPEED'].forEach((k,i)=>{
+    const n=i+1,rpm=tm.val[k],sat=Math.min(100,Math.abs(rpm)/5000*100);
+    const cls=Math.abs(rpm)>4500?'red':Math.abs(rpm)>3000?'yellow':'green';
+    set(`rw${n}-rpm`,rpm.toFixed(0));
+    set(`rw${n}-sat`,sat.toFixed(1));
+    set(`rw${n}-duty`,Math.round(sat*.4)+'%');
+    const rpmEl=$(`rw${n}-rpm`); if(rpmEl) rpmEl.className=cls;
+  });
+  // Attitude alerts
+  const alertsEl=$('alerts-content'),cntEl=$('alert-count');
+  if(alertsEl){
+    if(tm.events.length===0){
+      alertsEl.innerHTML='<div class="alert-empty">NO ACTIVE ALERTS — NOMINAL OPS</div>';
+    } else {
+      alertsEl.innerHTML=tm.events.slice(-6).reverse().map(ev=>{
+        const s=Math.floor(ev.met);
+        const ts=`${String(Math.floor(s/3600)).padStart(3,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+        const cls=ev.type==='CRITICAL'?'crit':ev.type==='WARN'?'warn':'info';
+        return `<div class="alert-row ${cls}"><span class="alert-type">${ev.type}</span><span class="alert-met">${ts}</span><span class="alert-msg">${ev.msg}</span></div>`;
+      }).join('');
+    }
+  }
+  if(cntEl) cntEl.textContent=tm.events.length+' ACTIVE';
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN ANIMATION LOOP
 // ═══════════════════════════════════════════════════════════════
 const tm        = new TelemetryEngine();
@@ -1787,46 +2206,72 @@ function animate(now) {
 
   const activePage = document.querySelector('.page:not(.hidden)')?.id || 'page-overview';
 
-  // ── Satellite attitude viewer (overview page) ──────────────
+  // ── Satellite attitude viewer ──────────────────────────────
   if (satScene && satScene.userData.pivot) {
-    const p    = satScene.userData.pivot;
+    const p = satScene.userData.pivot;
     const nadir = (2*Math.PI * tm.missionElapsed) / ORBIT_PERIOD_S;
-    const dR   = THREE.MathUtils.degToRad;
-    p.rotation.set(
-      dR(tm.val.ATT_ROLL)  + Math.sin(nadir)*0.02,
-      nadir + dR(tm.val.ATT_YAW),
-      dR(tm.val.ATT_PITCH),
-      'YXZ'
-    );
+    const dR = THREE.MathUtils.degToRad;
+    p.rotation.set(dR(tm.val.ATT_ROLL)+Math.sin(nadir)*.02, nadir+dR(tm.val.ATT_YAW), dR(tm.val.ATT_PITCH), 'YXZ');
   }
-  if (satRenderer && activePage === 'page-overview') {
-    satRenderer.render(satScene, satCamera);
-  }
+  if (satRenderer && activePage === 'page-overview') satRenderer.render(satScene, satCamera);
 
-  // ── Orbit viewer (attitude page) ──────────────────────────
+  // ── Orbit 3-D viewer ─────────────────────────────────────
   if (orbitScene) {
-    // Earth rotation
-    if (earthMesh) earthMesh.rotation.y += (2*Math.PI / 86400) * dt;
-
-    // Satellite dot on ring at trueAnomaly
+    if (earthMesh) earthMesh.rotation.y += (2*Math.PI/86400)*dt;
     if (satDotMesh) {
-      const ta = tm.trueAnomaly * Math.PI / 180;
+      const ta = tm.trueAnomaly*Math.PI/180;
       satDotMesh.position.set(Math.cos(ta)*2.52, Math.sin(ta)*2.52, 0);
     }
-
-    // Slow cinematic camera orbit
     camAngle += 0.0003;
     if (orbitCamera) {
-      orbitCamera.position.set(Math.sin(camAngle)*9, 4.5 + Math.sin(camAngle*0.4)*1.5, Math.cos(camAngle)*9);
-      orbitCamera.lookAt(0, 0, 0);
+      orbitCamera.position.set(Math.sin(camAngle)*9, 4.5+Math.sin(camAngle*.4)*1.5, Math.cos(camAngle)*9);
+      orbitCamera.lookAt(0,0,0);
     }
   }
-  if (orbitRenderer && activePage === 'page-attitude') {
-    orbitRenderer.render(orbitScene, orbitCamera);
+  if (orbitRenderer && activePage === 'page-attitude') orbitRenderer.render(orbitScene, orbitCamera);
+
+  // ── Header + text TM values ───────────────────────────────
+  updateHeader(tm);
+  updatePanels(tm);
+
+  // ── Overview 2-D instruments ──────────────────────────────
+  if (activePage === 'page-overview') {
+    const cvOM = document.getElementById('orbit-mini-canvas');
+    if (cvOM) drawOrbitMini(cvOM, tm);
+
+    const cvBG = document.getElementById('batt-gauge');
+    if (cvBG) drawArcGauge(cvBG, tm.val.PWR_BATT_SOC, 'BATT SOC');
+
+    // Signal derived from elevation-dependent RSSI model
+    const sigPct = Math.max(15, Math.min(98, 75+Math.sin(tm.missionElapsed*.04)*18));
+    const cvSG = document.getElementById('sig-gauge');
+    if (cvSG) drawArcGauge(cvSG, sigPct, 'SIGNAL');
+
+    const cvPB = document.getElementById('power-bar');
+    if (cvPB) drawPowerBar(cvPB, tm);
+
+    const cvGT = document.getElementById('groundtrack-canvas');
+    if (cvGT) drawGroundTrack(cvGT, tm);
+
+    if (chAttMini) chAttMini.draw(tm);
   }
 
-  // ── Header + TM text panels ───────────────────────────────
-  updateHeader(tm);
+  // ── Attitude page 2-D instruments ────────────────────────
+  if (activePage === 'page-attitude') {
+    const cvADI = document.getElementById('adi-canvas');
+    if (cvADI) drawADI(cvADI, tm.val.ATT_ROLL, tm.val.ATT_PITCH);
+
+    const cvOS = document.getElementById('orbit-shape-canvas');
+    if (cvOS) drawOrbitShape(cvOS, tm);
+
+    const cvGT2 = document.getElementById('groundtrack2-canvas');
+    if (cvGT2) drawGroundTrack(cvGT2, tm);
+
+    const cvAP = document.getElementById('alt-profile-canvas');
+    if (cvAP) drawAltProfile(cvAP, tm);
+
+    if (chAngles) chAngles.draw(tm);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1842,16 +2287,17 @@ document.getElementById('fault-btn').addEventListener('click', () => tm.injectFa
 // BOOT
 // ═══════════════════════════════════════════════════════════════
 function boot() {
-  // Size sat canvas (visible at load); orbit canvas is in hidden page —
-  // it gets properly sized when user navigates to attitude page.
-  const satC = document.getElementById('sat-canvas');
-  if (satC) sizeCanvas(satC);
+  // Size all overview-page canvases (visible at load)
+  ['sat-canvas','orbit-mini-canvas','att-mini-chart',
+   'groundtrack-canvas','batt-gauge','sig-gauge','power-bar'
+  ].forEach(id => { const c=document.getElementById(id); if(c) sizeCanvas(c); });
 
   // Pre-fill 5 min of nominal history so charts start full
   for (let i = 0; i < 600; i++) tm.tick(0.5);
 
+  initCharts();
   initSatViewer();
-  initOrbitViewer();   // inits scene/objects; renderer resize deferred to nav
+  initOrbitViewer();   // scene/objects inited; renderer resized on nav click
 
   requestAnimationFrame(animate);
 }
