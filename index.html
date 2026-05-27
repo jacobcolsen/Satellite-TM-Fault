@@ -317,11 +317,11 @@ body { display:flex; }
   width:100%; height:100%;
   display:grid;
   grid-template-columns: 1.1fr 1.65fr 1fr;
-  grid-template-rows: 3fr 2fr 1.45fr;
+  grid-template-rows: 2.8fr 1.4fr 3.2fr;
   grid-template-areas:
     "spacecraft  attitude    power"
     "thermal     payloads    comms"
-    "groundtrack groundtrack groundtrack";
+    "groundtrack groundtrack comms";
   gap:3px; padding:3px; box-sizing:border-box;
   background:var(--bg);
 }
@@ -332,7 +332,7 @@ body { display:flex; }
 .ov-thermal     { grid-area:thermal; }
 .ov-payloads    { grid-area:payloads; display:flex; gap:3px; }
 .ov-payloads>.panel { flex:1; }
-.ov-comms       { grid-area:comms; }
+.ov-comms       { grid-area:comms; }   /* spans rows 2+3 via repeated area name */
 .ov-groundtrack { grid-area:groundtrack; }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -551,10 +551,34 @@ body { display:flex; }
 .comms-v.on  { color:var(--status-nom); font-weight:700; }
 .comms-v.off { color:var(--text-label); }
 
-/* Ground track */
-.ov-groundtrack .pb { display:flex; }
-#groundtrack-canvas  { width:100%; height:100%; display:block; flex:1; }
+/* Ground track — canvas + telemetry strip */
+.ov-groundtrack .pb { display:flex; flex-direction:column; }
+.gt-map-wrap { flex:1; min-height:0; position:relative; overflow:hidden; }
+#groundtrack-canvas  { width:100%; height:100%; display:block; }
 #groundtrack2-canvas { width:100%; height:100%; display:block; flex:1; }
+
+/* Telemetry strip below the map (LAT / LON / ALT / VEL) */
+.gt-stats {
+  display:flex; flex-shrink:0;
+  height:38px;
+  border-top:1px solid var(--panel-border);
+  background:var(--panel-header);
+}
+.gt-stat {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  border-right:1px solid var(--panel-border-dim);
+  padding:3px 6px;
+}
+.gt-stat:last-child { border-right:none; }
+.gt-stat-l {
+  font-size:8px; letter-spacing:1.8px;
+  color:var(--text-dim); text-transform:uppercase; line-height:1.2;
+}
+.gt-stat-v {
+  font-family:var(--font-mono); font-size:13px;
+  font-weight:600; color:var(--accent-cyan); line-height:1.3;
+}
 
 /* ADI panel */
 .adi-body {
@@ -1007,8 +1031,16 @@ body { display:flex; }
             <span class="ph-title">Ground Track</span>
             <span class="live-badge">LIVE</span>
           </div>
-          <div class="pb" style="display:flex">
-            <canvas id="groundtrack-canvas"></canvas>
+          <div class="pb">
+            <div class="gt-map-wrap">
+              <canvas id="groundtrack-canvas"></canvas>
+            </div>
+            <div class="gt-stats">
+              <div class="gt-stat"><div class="gt-stat-l">LAT</div><div class="gt-stat-v" id="gt-lat">0.00° N</div></div>
+              <div class="gt-stat"><div class="gt-stat-l">LON</div><div class="gt-stat-v" id="gt-lon">0.00° W</div></div>
+              <div class="gt-stat"><div class="gt-stat-l">ALT</div><div class="gt-stat-v" id="gt-alt">408.0 km</div></div>
+              <div class="gt-stat"><div class="gt-stat-l">VEL</div><div class="gt-stat-v" id="gt-vel">7.66 km/s</div></div>
+            </div>
           </div>
         </div>
 
@@ -2003,19 +2035,42 @@ function drawGroundTrack(canvas, tm) {
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   ctx.fillStyle='#030815'; ctx.fillRect(0,0,W,H);
-  if(earthImg){ ctx.globalAlpha=.35; ctx.drawImage(earthImg,0,0,W,H); ctx.globalAlpha=1; }
+
+  // ── Earth image: CONTAIN semantics — full globe always visible ──
+  // Wider-than-2:1 canvas → fit to height, dark bars left+right
+  // Taller-than-2:1 canvas → fit to width, dark bars top+bottom
+  const IMG_AR=2.0;   // equirectangular is always 2:1
+  const cAR=W/H;
+  let iX,iY,iW,iH;
+  if(cAR>=IMG_AR){    // canvas wider than 2:1 → constrain by height
+    iH=H; iW=H*IMG_AR; iX=(W-iW)/2; iY=0;
+  } else {            // canvas taller than 2:1 → constrain by width
+    iW=W; iH=W/IMG_AR; iX=0; iY=(H-iH)/2;
+  }
+  if(earthImg){ ctx.globalAlpha=.35; ctx.drawImage(earthImg,iX,iY,iW,iH); ctx.globalAlpha=1; }
   ctx.fillStyle='rgba(5,15,35,.55)'; ctx.fillRect(0,0,W,H);
-  const proj=(lat,lon)=>({x:(lon+180)/360*W,y:(90-lat)/180*H});
-  // Lat/lon grid
+
+  // Projection maps lat/lon into the drawn image coordinate space
+  const proj=(lat,lon)=>({
+    x: iX+(lon+180)/360*iW,
+    y: iY+(90-lat)/180*iH
+  });
+
+  // Lat/lon grid (clipped to image bounds)
   ctx.strokeStyle='rgba(0,180,100,.12)'; ctx.lineWidth=.5;
   for(let lat=-90;lat<=90;lat+=30){
-    ctx.beginPath(); ctx.moveTo(0,(90-lat)/180*H); ctx.lineTo(W,(90-lat)/180*H); ctx.stroke();
+    const y=iY+(90-lat)/180*iH;
+    if(y<-1||y>H+1) continue;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
   }
   for(let lon=-180;lon<=180;lon+=30){
-    ctx.beginPath(); ctx.moveTo((lon+180)/360*W,0); ctx.lineTo((lon+180)/360*W,H); ctx.stroke();
+    const x=iX+(lon+180)/360*iW;
+    if(x<-1||x>W+1) continue;
+    ctx.beginPath(); ctx.moveTo(x,Math.max(0,iY)); ctx.lineTo(x,Math.min(H,iY+iH)); ctx.stroke();
   }
+  const ey=iY+iH/2;   // equator y
   ctx.strokeStyle='rgba(0,200,100,.28)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,ey); ctx.lineTo(W,ey); ctx.stroke();
   // Compute track points (−1 orbit … +1 orbit)
   const INC=51.6*Math.PI/180,T=5568,met=tm.missionElapsed;
   const pts=[];
@@ -2168,6 +2223,16 @@ function updatePanels(tm) {
     set(`rw${n}-duty`,Math.round(sat*.4)+'%');
     const rpmEl=$(`rw${n}-rpm`); if(rpmEl) rpmEl.className=cls;
   });
+  // Ground track telemetry strip
+  const INC_R=51.6*Math.PI/180, T=5568;
+  const Mgt=(2*Math.PI/T)*tm.missionElapsed;
+  const gtLat=Math.asin(Math.sin(INC_R)*Math.sin(Mgt))*180/Math.PI;
+  const gtRawLon=Math.atan2(Math.cos(INC_R)*Math.sin(Mgt),Math.cos(Mgt));
+  const gtLon=((gtRawLon-(2*Math.PI/86400)*tm.missionElapsed)*180/Math.PI%360+540)%360-180;
+  set('gt-lat',Math.abs(gtLat).toFixed(2)+'° '+(gtLat>=0?'N':'S'));
+  set('gt-lon',Math.abs(gtLon).toFixed(2)+'° '+(gtLon>=0?'E':'W'));
+  set('gt-alt',(tm.val.ALTITUDE||408).toFixed(1)+' km');
+  set('gt-vel','7.66 km/s');
   // Attitude alerts
   const alertsEl=$('alerts-content'),cntEl=$('alert-count');
   if(alertsEl){
