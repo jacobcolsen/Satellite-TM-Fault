@@ -1,0 +1,724 @@
+================================================================================
+  SSL-1 / HELIOS-7  DASHBOARD — FINISH-OUT PHASES  (Phases 7–15)
+  File: FINISH_PHASES.txt
+  Prerequisite: Phases 1–6 complete (Overview + Attitude & Orbit pages live)
+================================================================================
+
+CURRENT STATE BASELINE
+----------------------
+Pages live:    #page-overview, #page-attitude
+Nav stubs:     Power, Thermal, Propulsion, Communications,
+               Data, Event Log, Commanded, Settings  (8 stubs)
+TM values:     RW1-4_SPEED, PROP_MASS, PROP_TANK_PRESS, ALTITUDE,
+               ATT_ROLL/PITCH/YAW, PWR_BATT_SOC/V/SOLAR_A/B/BUS_LOAD,
+               THERM_BATT/PANEL_A/PROP_LINE, PLD_*
+Missing TM:    Cell voltages, eclipse flag, solar efficiency,
+               Doppler, RSSI, frame counts, SSR fill, thruster events
+Missing HTML:  "Data Status" + "Recent Events" panels on Overview
+               (visible in Screen 1.png reference)
+
+
+================================================================================
+PHASE 7 — TELEMETRY ENGINE EXTENSIONS
+================================================================================
+Goal: Add all new TM values needed by Pages 3–8 without changing existing
+      fault physics. New values ride on top of existing tick() logic.
+
+Files changed: index.html  (TelemetryEngine class only)
+
+Tasks:
+
+  7.1  Power extensions  (add to nom{}, val{})
+         PWR_CELL_V:   array of 6 values, each ~4.0 V ± 0.02 V noise
+                       formula: 4.0 + (SOC-80)*0.002 + gauss(0.005) per cell
+                       (cells sag together; fault adds extra spread)
+         PWR_ECLIPSE:  0 or 1; eclipse when trueAnomaly in [200°,270°]
+                       (ISS-like beta angle; ~30% of orbit in shadow)
+         PWR_GEN_EFF:  solar array efficiency 0–100 %
+                       = 95 - (THERM_PANEL_A + 40) * 0.12 + gauss(0.3)
+                       (efficiency drops as panel heats up on daylit side)
+         PWR_CHARGE_A: battery charge current (A)
+                       = (solar_total - PWR_BUS_LOAD) / PWR_BATT_V
+                       (negative when discharging in eclipse)
+
+  7.2  Propulsion extensions
+         PROP_FLOW_RATE:  (ml/s)  = _pressLoss-rate * 0.34 + gauss(0.001)
+                          (derived from tank pressure drop rate estimate)
+         PROP_DV_USED:    (m/s)   = _massLoss / 24.82 * 235
+                          (Tsiolkovsky: Isp 235 s, nominal delta-V budget)
+         PROP_DV_REMAIN:  (m/s)   = 87.3 - PROP_DV_USED  (budget = 87.3 m/s)
+         PROP_THRUSTER_STATUS: array[8] of {id, name, temp, firings, ok}
+           Thrusters: A1-A4 (roll/pitch, 1N each), B1-B2 (yaw, 4N each),
+                      ME (main engine 22N, rarely fired)
+           Temps nominal: 18–24 °C; fault raises temp of A1+A3 by 4 °C
+
+  7.3  Communications extensions
+         COMMS_RSSI:     (dBm)  = -87 + sin(met*0.04)*2.1 + gauss(0.3)
+                         Goes to -999 when not in contact with any station
+         COMMS_BER:      (log10 scale) = -8.2 + gauss(0.2) nominal
+                         Rises to -5.8 during link margin degradation
+         COMMS_DOPPLER:  (kHz)  = 6.2 * sin(trueAnomaly * DEG2RAD) * cos(INC_R)
+                         (peak ±6.2 kHz for 7.66 km/s LEO approaching DSN)
+         COMMS_FRAMES_DN: counter, increments 512 per tick when in contact
+         COMMS_FRAMES_UP: counter, increments 64 per tick when in contact
+
+  7.4  Data / SSR extensions
+         DATA_SSR_FILL:   (%) starts at 34.2, +0.018%/tick (science data accrual)
+                          -0.9%/tick while actively downlinking (contact window)
+                          clamps 0–100
+         DATA_RATE_SCI:   (kbps) = 1024 + gauss(20)   (science instrument rate)
+         DATA_RATE_HK:    (kbps) = 64                  (housekeeping, fixed)
+         DATA_PRODUCTS:   array[5] of {name, size_mb, status, priority}
+           Examples: 'OBS_2026_001', 'CAL_FRAME_44', etc.
+           Status cycles: QUEUED → DOWNLINKING → COMPLETE
+
+  7.5  Thruster event log  (this.thrusterEvents = [])
+         Push event: { met, thruster, dur_ms, dv_mm_s, cause }
+         Fired whenever |roll|>0.5° triggers ADCS correction:
+           ADCS fires thruster pair A1+A3 for ~60ms to correct roll
+         Fault makes corrections more frequent (every ~8 s vs. ~90 s nominal)
+         Keep last 20 events
+
+  7.6  Wiring
+         All new vals computed inside tick() after existing fault logic
+         All new vals added to nom{} with realistic defaults
+         gauss() reused for all noise
+
+Verification:
+  - console.log(tm.val) shows all new keys after 1 tick
+  - PWR_ECLIPSE toggles between 0 and 1 as trueAnomaly sweeps
+  - PROP_DV_REMAIN counts down from ~87.3 m/s
+  - COMMS_RSSI is -87 dBm at nominal, spikes during pass windows
+  - DATA_SSR_FILL slowly increases at rest, drops during contact window
+
+
+================================================================================
+PHASE 8 — POWER PAGE  (#page-power)
+================================================================================
+Goal: Full-width dedicated power monitoring page with gauges, tables, charts.
+
+Files changed: index.html  (HTML + CSS + JS update function)
+
+Grid layout (power-grid):
+  Row 1 (3 cols):  [Battery Gauge large] [Solar / Generation] [Eclipse Status]
+  Row 2 (1 col):   [Power Distribution Bar — full width]
+  Row 3 (2 cols):  [Cell Voltage Table]  [Power Strip Charts]
+
+Tasks:
+
+  8.1  Nav wiring
+         Remove nav-stub class from Power <li>, add data-page="power"
+         Add <div id="page-power" class="page hidden"> to main content
+
+  8.2  Battery Gauge (large version)
+         Canvas id="pwr-batt-gauge", 200×200 px CSS
+         Same arc gauge style as overview batt-gauge but larger
+         Add 6 cell voltage bars below the arc (3×2 grid):
+           CELL 1: 4.023 V  CELL 2: 4.017 V  etc.
+           Color: green >3.95V, yellow 3.85-3.95V, red <3.85V
+         Add CHARGE CURRENT row:  +1.84 A (charging) / -2.31 A (discharging)
+           Color green if positive, red if negative
+
+  8.3  Solar / Generation panel
+         Arc gauge id="pwr-solar-gauge", shows TOTAL generation (Solar A + Solar B)
+         Center: total watts generated (e.g. "233 W")
+         Below: two bars Solar A and Solar B with individual wattages
+         SOLAR ARRAY EFFICIENCY %: large text + color
+         SUN ANGLE indicator: small dial showing orientation to sun
+
+  8.4  Eclipse Status panel
+         Large text: "DAYLIGHT" (green) or "ECLIPSE" (amber pulse)
+         Orbital phase clock: circular arc showing where in orbit sat currently is
+           — full 360° ring, color-coded green (daylight) vs. dark (shadow)
+           — satellite dot on ring at current trueAnomaly
+         Countdown: "ECLIPSE IN 12:34" or "DAYLIGHT IN 03:22"
+           computed from (trueAnomaly distance to 200°/270° boundaries)
+         NEXT ECLIPSE / NEXT DAYLIGHT times (MET-based countdowns)
+
+  8.5  Power Distribution Bar (full-width canvas)
+         Two-row stacked bar:
+           Top bar:    GENERATION  [Solar A ██████ Solar B ████ ]  233 W total
+           Bottom bar: CONSUMPTION [ADCS ██ COMMS ██ PAYLOAD ██ THERMAL ██]
+         Sub-system loads (estimated from nominal values):
+           ADCS 18 W, COMMS 22 W, PAYLOAD-SHARKS 14 W,
+           PAYLOAD-LASERS 38 W, C&DH 12 W, THERMAL 8 W, MISC 6 W
+         Shows "SURPLUS / DEFICIT" delta with color
+
+  8.6  Cell Voltage Table
+         6-row table with live values from PWR_CELL_V[0..5]
+         Columns: CELL | VOLTAGE (V) | DELTA (mV from nominal) | STATUS
+         Footer: AVG voltage | MIN cell | MAX cell
+         Color coding per cell
+
+  8.7  Power Strip Charts (3 stacked, last 5 min)
+         ch-pwr-gen:  Solar A (green) + Solar B (teal), 0–350 W
+         ch-pwr-load: Bus load (red), 0–350 W
+         ch-pwr-soc:  Battery SOC (blue), 0–100 %
+         All use existing StripChart class with new canvas IDs:
+           'ch-pwr-gen', 'ch-pwr-load', 'ch-pwr-soc'
+
+  8.8  Update function: updatePowerPage(tm)
+         Called every tick when activePage === 'page-power'
+         Redraws all 3 canvases + updates all text/color values
+
+Verification:
+  - Sidebar POWER item clicks and shows power page
+  - Battery arc fills to correct SOC%
+  - ECLIPSE indicator toggles as trueAnomaly crosses 200°
+  - Cell voltage table shows 6 rows with live values
+  - Strip charts scroll with 2 Hz updates
+  - Pressing F → bus load climbs (ADCS works harder to fight tumble)
+
+
+================================================================================
+PHASE 9 — THERMAL PAGE  (#page-thermal)
+================================================================================
+Goal: Thermal monitoring page with spacecraft silhouette heatmap,
+      component table, heater status, and temperature history.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Grid layout (therm-grid):
+  Row 1 (2 cols):  [Spacecraft Thermal Map — SVG+canvas] [Component Table]
+  Row 2 (2 cols):  [Heater Status Table]  [Temperature Strip Charts]
+
+Tasks:
+
+  9.1  Nav wiring  (same pattern as Phase 8)
+
+  9.2  Spacecraft Thermal Map
+         SVG silhouette of a simplified satellite:
+           - Main body rectangle (C&DH, battery)
+           - Two solar panel rectangles (left and right)
+           - Propulsion module at bottom
+           - Sensor/payload nose at top
+         Canvas overlay id="therm-map-canvas" drawn on top of SVG
+         Each zone filled with color gradient:
+           Green  → 0–30 °C  (nominal operating range)
+           Yellow → 30–45 °C or <-10 °C  (caution)
+           Red    → >45 °C or <-20 °C  (critical)
+         Temperature label on each zone in white
+
+  9.3  Component Temperature Table
+         10 rows covering all monitored thermal zones:
+           OBC PROCESSOR, BATTERY PACK, PROPULSION LINE, SOLAR ARRAY A,
+           SOLAR ARRAY B, STRUCTURE NADIR, STRUCTURE ZENITH, ME NOZZLE,
+           PAYLOAD BAY, COMMS TRANSPONDER
+         Columns: COMPONENT | TEMP (°C) | LIMIT LOW | LIMIT HIGH | STATUS | TREND ↑↓
+         Trend: up arrow if last 10 readings rising >0.2°/tick, down if falling
+         Limit columns show the thermal bounds; cell turns red if exceeded
+         New TM values needed: THERM_OBC, THERM_STRUCT_NADIR, THERM_STRUCT_ZEN,
+           THERM_COMMS, THERM_PLD (add to Phase 7 engine if missed)
+
+  9.4  Heater Status Table
+         8 heaters with ON/OFF status and current draw:
+           HTR-BATT (battery heater), HTR-PROP-LINE (propulsion heater),
+           HTR-PROP-TANK, HTR-SA-A-ROOT, HTR-SA-B-ROOT,
+           HTR-PAYLOAD, HTR-COMMS, HTR-OBC
+         Heater state logic:
+           ON when zone temp < setpoint - 2°C, OFF when temp > setpoint + 2°C
+           Setpoints: BATT 10°C, PROP-LINE 15°C, PROP-TANK 5°C, etc.
+         Current draw when ON: ~5 W each; contributes to THERMAL load in power bar
+         Display: HEATER | SETPOINT | CURRENT TEMP | STATUS (ON/OFF) | POWER (W)
+
+  9.5  Temperature Strip Charts (3 stacked)
+         ch-therm-body:  OBC (cyan) + Battery (yellow), -20 to +50 °C
+         ch-therm-prop:  Propulsion line (orange), -10 to +40 °C
+         ch-therm-solar: Solar panel A (blue), -80 to +80 °C
+         (Solar panel swings wildly between eclipse and daylight — dramatic!)
+
+  9.6  Update function: updateThermalPage(tm)
+         Redraws thermal map canvas, updates all table values, redraws charts
+
+Verification:
+  - Thermal map zones color correctly for current temperatures
+  - Solar array zone turns very cold (dark blue) during eclipse
+  - Battery heater turns ON when battery temp drops below 8°C
+  - Pressing F → propulsion line temp cools (thruster valve bypasses heat)
+  - Strip charts show eclipse thermal swing cycle
+
+
+================================================================================
+PHASE 10 — PROPULSION PAGE  (#page-propulsion)
+================================================================================
+Goal: Propulsion system deep-dive: tank, thrusters, delta-V budget, events.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Grid layout (prop-grid):
+  Row 1 (3 cols):  [Tank Pressure Gauge] [Propellant Mass Gauge] [Δv Budget]
+  Row 2 (2 cols):  [Thruster Status Table]  [Firing Event Log]
+  Row 3 (1 col):   [Flow Rate + Pressure Strip Charts]
+
+Tasks:
+
+  10.1  Nav wiring
+
+  10.2  Tank Pressure Gauge (large arc)
+          Canvas id="prop-press-gauge", 200×200 CSS px
+          Range: 0–350 psi; nominal 312 psi
+          Green 290–350, yellow 260–290, red <260
+          Center: current psi with 1 decimal
+          Sub-label: "TANK PRESSURE"
+          Second smaller label below: PROP_MASS.toFixed(3) + " kg remaining"
+
+  10.3  Propellant Mass Gauge
+          Vertical bar gauge (like a fuel tank graphic):
+          Full-height rectangle outline, filled bar from bottom up
+          = PROP_MASS / 24.820 * 100 %
+          Color transitions: green >40%, yellow 20-40%, red <20%
+          Labels: "24.820 kg FULL" at top, "0 kg EMPTY" at bottom
+          Current mass displayed as large text below
+
+  10.4  Δv Budget panel
+          Three rows:
+            TOTAL BUDGET    87.3 m/s   (constant)
+            USED            X.XXX m/s  (PROP_DV_USED, live)
+            REMAINING       XX.X m/s   (PROP_DV_REMAIN, live; bar + text)
+          Percentage bar: remaining / 87.3 * 100%, same color scale as tank
+          Mission phases consumed: Orbit Raise 12.4 m/s, Station-keeping est. 8.1 m/s
+
+  10.5  Thruster Status Table
+          8 thrusters from PROP_THRUSTER_STATUS array:
+          Columns: THRUSTER | TYPE | TEMP (°C) | TOTAL FIRINGS | STATUS
+          Color: green = OK, yellow = WARM (>35°C), red = HOT (>50°C)
+          Status badge: STANDBY / FIRING / FAULT
+          A1+A3 flash FIRING briefly when ADCS correction fires
+
+  10.6  Firing Event Log (scrollable)
+          From thrusterEvents array (last 20 entries)
+          Columns: MET | THRUSTER | DURATION (ms) | ΔV (mm/s) | CAUSE
+          Cause: "ADCS CORRECTION" (nominal), "FAULT-INDUCED ADCS" (post-fault)
+          Newest at top; fault events highlighted in yellow
+
+  10.7  Strip Charts (2 stacked)
+          ch-prop-press:  Tank pressure (green), 275–320 psi
+          ch-prop-flow:   Flow rate estimate (orange), 0–2.0 ml/s
+          Shows pressure stepping down during thruster firings as small dips
+
+  10.8  Update function: updatePropulsionPage(tm)
+
+Verification:
+  - Tank pressure gauge reads same value as overview sc-pres
+  - Propellant bar depletes visibly over time
+  - Thruster table shows 8 rows; A1+A3 flash yellow during ADCS correction
+  - Δv remaining decrements correctly with mass loss
+  - Pressing F → firing events appear at much higher frequency
+  - Pressure strip chart shows small dips coinciding with thruster firings
+
+
+================================================================================
+PHASE 11 — COMMUNICATIONS PAGE  (#page-comms)
+================================================================================
+Goal: Full link budget, contact timeline, Doppler, frame counts, BER history.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Grid layout (comms-grid):
+  Row 1 (3 cols): [Signal Gauge large] [Link Budget Table] [Doppler + Frequency]
+  Row 2 (1 col):  [Contact Timeline — orbital contact window arc]
+  Row 3 (2 cols): [Frame Counter panel] [BER History strip chart]
+
+Tasks:
+
+  11.1  Nav wiring
+
+  11.2  Signal Strength Gauge (large)
+          Canvas id="comms-sig-gauge", 200×200 CSS px
+          Arc gauge 0–100%: red <30, yellow 30–60, green >60
+          Derived from COMMS_RSSI: pct = clamp((RSSI+100)/30*100, 0, 100)
+          Center: pct + '%'  then  COMMS_RSSI.toFixed(1) + " dBm" below
+          During NO CONTACT: gauge shows 0%, pulsing "NO SIGNAL" label
+
+  11.3  Link Budget Table
+          Static-ish table (updates ~1/tick for Doppler column):
+          Row | VALUE | UNITS
+          ─────────────────────────────────────────
+          TRANSMIT POWER     | 5.0         | W
+          ANTENNA GAIN (TX)  | 8.5         | dBi
+          EIRP               | 15.5        | dBW
+          FREE SPACE LOSS    | -178.2      | dB
+          ATMOSPHERIC LOSS   | -0.4        | dB
+          GROUND GAIN        | 42.0        | dBi
+          RECEIVED POWER     | RSSI        | dBm  (live)
+          Gr/T               | 28.4        | dB/K
+          Eb/N0              | 12.4        | dB   (live, degrades with BER)
+          REQUIRED Eb/N0     | 9.6         | dB
+          LINK MARGIN        | 2.8         | dB   (green), or red if <0
+
+  11.4  Doppler + Frequency panel
+          Large display:
+            UPLINK FREQUENCY:   2067.5 + COMMS_DOPPLER*0.95 MHz  (live)
+            DOWNLINK FREQUENCY: 2287.5 + COMMS_DOPPLER MHz       (live)
+            DOPPLER SHIFT:      ±X.XX kHz  (positive = approaching)
+          Graphic: small horizontal bar sweep showing ±6.2 kHz range
+          Modulation section: BPSK / Rate 1/2 / 4.096 Mbps (static)
+
+  11.5  Contact Timeline (full-width canvas)
+          Canvas id="comms-timeline"
+          Horizontal axis: current MET ± 90 min (1 orbit)
+          Background: dark band for each 90-min orbit
+          Green bands at contact window times (AOS to LOS for each station)
+          Vertical line at "NOW"
+          Station labels above bands: GOLDSTONE, MADRID, CANBERRA
+          Shows upcoming 4 contact windows as colored bars
+          Current contact highlighted (brighter green + "IN CONTACT" label)
+
+  11.6  Frame Counter Panel
+          Large monospace numbers:
+            FRAMES DOWNLINKED:  00,000,512  (COMMS_FRAMES_DN, live)
+            FRAMES RECEIVED:    00,000,064  (COMMS_FRAMES_UP, live)
+            FRAME ERRORS:       0           (only non-zero when BER > -6)
+          Below: data transfer since session start
+            DATA DOWN: X.XX MB
+            DATA UP:   X.XX kB
+
+  11.7  BER Strip Chart
+          ch-comms-ber: Bit error rate (log10 scale), range -10 to -4
+          Cyan line; threshold band at -6 (above = caution)
+          Y-axis labels: 1e-4, 1e-6, 1e-8, 1e-10
+          Spikes during contact transitions (brief noise burst)
+
+  11.8  Update function: updateCommsPage(tm)
+
+Verification:
+  - Signal gauge reads 0% and shows NO SIGNAL between contact windows
+  - Jumps to ~75% when contact window opens
+  - Doppler display changes sign as satellite approaches/recedes
+  - Frame counters tick up during contact windows, pause between
+  - Contact timeline shows correct upcoming windows
+  - Pressing F has no effect on comms (fault doesn't affect RF system)
+
+
+================================================================================
+PHASE 12 — DATA PAGE  (#page-data)
+================================================================================
+Goal: SSR utilization, science data products queue, data rate monitoring.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Grid layout (data-grid):
+  Row 1 (3 cols): [SSR Gauge] [Data Rate panel] [Collection Status]
+  Row 2 (1 col):  [Data Products Table — full width]
+  Row 3 (2 cols): [Downlink Progress] [Data Rate Strip Chart]
+
+Tasks:
+
+  12.1  Nav wiring
+
+  12.2  SSR Gauge
+          Vertical fill gauge (like tank, but horizontal bar with segments):
+          Canvas id="data-ssr-gauge"
+          Width proportional to DATA_SSR_FILL %
+          Color: green 0–70%, yellow 70–85%, red >85%
+          Labels: "SSR: X.X GB / 256 GB" (derive GB from fill %)
+          Five tick marks at 20, 40, 60, 80, 100%
+
+  12.3  Data Rate Panel
+          Three stacked rows:
+            SCIENCE DATA COLLECTION:  DATA_RATE_SCI kbps   (live)
+            HOUSEKEEPING:             DATA_RATE_HK kbps    (fixed 64)
+            DOWNLINK CAPACITY:        4096 kbps when in contact, else 0
+          Visual comparison: collect rate vs. downlink rate
+          "NET ACCUMULATION: +X.XX GB/day" estimate
+
+  12.4  Collection Status
+          Mode: SCIENCE COLLECT / STANDBY / DOWNLINK PRIORITY
+          Current mode logic:
+            DOWNLINK PRIORITY if in contact window
+            SCIENCE COLLECT otherwise
+          Payload instruments table:
+            IMAGER-A: COLLECTING / STANDBY
+            IMAGER-B: STANDBY
+            SPECTROMETER: COLLECTING
+            SHARK-CAM: ACTIVE
+          Toggle state with MET phase
+
+  12.5  Data Products Table
+          From DATA_PRODUCTS array (5 products cycling through states)
+          Columns: PRODUCT ID | TYPE | SIZE (MB) | STATUS | PRIORITY | DOWNLINK TIME
+          Status colors:
+            QUEUED → gray
+            DOWNLINKING → cyan pulse
+            COMPLETE → green
+          Downlink time = SIZE / 4.096 Mbps → show as "12.3 s"
+          Products rotate state: QUEUED → DOWNLINKING (during contact) → COMPLETE
+
+  12.6  Downlink Progress panel
+          Active when in contact window; shows progress bars per product:
+          "DOWNLINKING: OBS_2026_001  [████████░░░░] 67%  ETA: 4.2s"
+          Pauses / shows "WAITING FOR CONTACT" otherwise
+
+  12.7  Data Rate Strip Chart
+          ch-data-rate: Science collect rate (cyan), 0–2048 kbps
+                        Downlink rate (green), 0–4096 kbps (goes to 0 out of contact)
+          Both lines on same chart with dual Y-axis labels
+
+  12.8  Update function: updateDataPage(tm)
+
+Verification:
+  - SSR fill bar increases slowly when collecting, drops during contact window
+  - Data products table shows products cycling through states
+  - Downlink rate line in chart jumps to 4096 kbps at contact AOS
+  - No effect from fault injection (data system remains operational)
+
+
+================================================================================
+PHASE 13 — EVENT LOG PAGE  (#page-eventlog)
+================================================================================
+Goal: Scrollable, filterable system event log showing all telemetry events
+      in chronological order with severity coloring.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Layout: single-column scrollable panel with filter bar at top
+
+Tasks:
+
+  13.1  Nav wiring
+
+  13.2  Filter bar (sticky at top of panel)
+          Four toggle buttons:
+            [ ALL ] [ CRITICAL ] [ WARN ] [ INFO ]
+          Active filter highlighted in accent color
+          Event count badge on each: "CRITICAL (2) WARN (5) INFO (14)"
+          Clicking a filter shows only matching severity rows
+
+  13.3  Event Table
+          Full-width scrollable <table id="event-log-table">
+          Columns: SEQ | MET | UTC | SUBSYSTEM | SEVERITY | MESSAGE | OPR
+          SEQ: incrementing event sequence number (001, 002, ...)
+          MET: formatted 000:00:00
+          UTC: computed from MET + session start time
+          SUBSYSTEM: ADCS / POWER / THERMAL / PROPULSION / COMMS / C&DH / PAYLOAD
+          SEVERITY: colored pill badge — CRITICAL/WARN/INFO/NOMINAL
+          MESSAGE: free-text description
+          OPR: operator action taken (usually "—" until user presses R key)
+          Row background: subtle tint by severity (dark red, dark yellow, dark gray)
+          Newest events at TOP
+
+  13.4  Seed events (pre-populate on boot)
+          Create 12 synthetic historical events before fault injection:
+            INFO    – 000:00:01  C&DH   "Boot complete. FM v2.4.1"
+            INFO    – 000:00:02  COMMS  "AOS GOLDSTONE DSN. RSSI -84.2 dBm"
+            INFO    – 000:00:05  POWER  "Eclipse entry predicted T+42:18"
+            NOMINAL – 000:01:15  ADCS   "Fine pointing achieved. err < 0.1°"
+            INFO    – 000:02:31  COMMS  "Doppler peak. freq 2287.506 MHz"
+            INFO    – 000:03:00  DATA   "Science collect: OBS_2026_001 started"
+            INFO    – 000:04:12  POWER  "Eclipse entry. SOC 82.1%"
+            NOMINAL – 000:05:02  POWER  "Daylight restored. Charging 1.84 A"
+            INFO    – 000:05:05  COMMS  "LOS GOLDSTONE DSN"
+            INFO    – 000:05:20  DATA   "Product OBS_2026_001 complete (42.3 MB)"
+            NOMINAL – 000:06:41  COMMS  "AOS MADRID DSN. RSSI -88.4 dBm"
+            INFO    – 000:07:00  PAYLOAD "SHARK activity nominal 78.2%"
+
+  13.5  Fault injection event hook
+          When 'F' pressed: push event to log:
+            CRITICAL – ADCS  "Fault injected: thruster valve A1 stuck open"
+          When 'R' pressed (reset): push event:
+            INFO     – ADCS  "Fault cleared. ADCS resumed nominal control"
+
+  13.6  Live append
+          Each new tm.events entry (from Phase 7.5 alert logic) also
+          appears in the event log table with SUBSYSTEM = ADCS
+          The event log table rebuilds from the merged event array each tick
+
+  13.7  Export button (top-right of filter bar)
+          "[ ↓ CSV ]" button → builds CSV string from event table,
+          triggers browser download: satellite-events-MET.csv
+
+  13.8  Update function: updateEventLogPage(tm)
+          Only runs when activePage === 'page-eventlog'
+          Rebuilds table HTML from event array + filter state
+
+Verification:
+  - Page shows 12 seed events pre-populated on first visit
+  - CRITICAL filter hides INFO/WARN rows
+  - Pressing F adds CRITICAL event at top; page shows it immediately
+  - Pressing R adds INFO event
+  - CSV export downloads a file with correct headers
+  - Scroll works for large event lists
+
+
+================================================================================
+PHASE 14 — COMMANDED PAGE  (#page-commanded)
+================================================================================
+Goal: Command history table showing all commands issued to the spacecraft,
+      with verification status and ADCS correction commands from thruster events.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Layout: header stats row + full-width scrollable command table
+
+Tasks:
+
+  14.1  Nav wiring
+
+  14.2  Stats bar (top of page)
+          Four stat chips:
+            TOTAL COMMANDS:   XX
+            VERIFIED:         XX  (green)
+            PENDING:          XX  (yellow)
+            REJECTED:         0   (red; stays 0 unless fault causes bad uplink)
+
+  14.3  Command History Table
+          Columns:
+            SEQ | MET ISSUED | SOURCE | MNEMONIC | PARAMETERS | STATUS | MET VERIFIED
+          Source: "OPERATOR" (manual) / "ADCS-AUTO" (autonomous correction) / "SCHED"
+          Status pill: VERIFIED (green) / PENDING (yellow, <5s since issue) / REJECTED (red)
+          Verification logic: commands transition PENDING→VERIFIED after 2 ticks (1 sec)
+
+  14.4  Seed commands (pre-populate on boot, ~15 commands)
+          Examples:
+            MEMORY_DUMP     – "DUMP HK_STORE ADDR=0x0000 LEN=4096"  VERIFIED
+            POINTING_MODE   – "SET_MODE FINE_POINTING"               VERIFIED
+            PAYLOAD_ENABLE  – "PLD_SHARKS ON"                        VERIFIED
+            PAYLOAD_ENABLE  – "PLD_LASERS ON MODE=TRACKING"         VERIFIED
+            DOWNLINK_RATE   – "DL_RATE 4096KBPS"                    VERIFIED
+            ACS_GAINS       – "ACS_KP 0.85 KD 1.2 KI 0.05"          VERIFIED
+            HEATER_SETPT    – "HTR_BATT_SP 10.0"                    VERIFIED
+            SCHEDULE_DUMP   – "SCHED_OBS OBS_2026_001 DUR=300"       VERIFIED
+            SCHEDULE_DUMP   – "SCHED_OBS CAL_FRAME_44 DUR=60"        VERIFIED
+            TLE_UPDATE      – "TLE_EPOCH 2026-05-27T00:00:00Z"       VERIFIED
+            ...
+
+  14.5  Live command injection
+          ADCS-AUTO commands: each thruster firing event (Phase 7.5) generates
+          a command: "THRUST A1+A3 DUR=60ms" with SOURCE=ADCS-AUTO, auto-VERIFIED
+          Fault injection (F key): adds command "DIAG_FAULT_SIM VALVE=A1"
+          Fault reset (R key): adds command "FAULT_CLEAR ALL"
+
+  14.6  Filter + Search bar
+          Text input: filter by MNEMONIC keyword
+          Source filter: [ ALL ] [ OPERATOR ] [ ADCS-AUTO ] [ SCHED ]
+
+  14.7  Update function: updateCommandedPage(tm)
+
+Verification:
+  - Boot shows ~15 seed commands, all VERIFIED
+  - As ADCS fires thrusters nominally, new THRUST commands appear
+  - Pressing F: DIAG_FAULT_SIM command appears, ADCS commands frequency increases
+  - Source filter hides ADCS-AUTO rows correctly
+
+
+================================================================================
+PHASE 15 — OVERVIEW UPGRADES + SETTINGS + FINAL POLISH
+================================================================================
+Goal: Add two missing Overview panels visible in reference Screen 1.png;
+      implement Settings page; complete QA sweep.
+
+Files changed: index.html  (HTML + CSS + JS)
+
+Tasks:
+
+  15.1  Overview — "Recent Events" panel
+          Add panel ov-events to overview grid (right column, below comms)
+          CSS: ov-events occupies the bottom-right cell of the ov-grid
+          Adjust ov-grid:
+            "spacecraft  attitude    power"
+            "thermal     payloads    comms"
+            "groundtrack groundtrack events"
+          Shows last 5 entries from Event Log (mixed severity)
+          Each row: colored dot + MET + short message (truncated to ~40 chars)
+          Footer link: "VIEW ALL →" switches nav to Event Log page
+
+  15.2  Overview — "Data Status" panel
+          Collapse ov-groundtrack to span 2 cols; add ov-data in 3rd col
+          OR add Data Status as a mini-widget inside the Ground Track panel footer
+          (prefer the footer widget to avoid re-laying out the full grid)
+          Shows: SSR fill bar, DATA_RATE_SCI, last product name + status
+          Footer: "VIEW ALL →" switches to Data page
+
+  15.3  Settings Page  (#page-settings)
+          Nav wiring: remove nav-stub, data-page="settings"
+          Two-column layout:
+            Left col: DISPLAY SETTINGS
+              - Chart refresh rate slider: 1–10 Hz (default 2 Hz)
+              - Strip chart history length: 60 / 120 / 300 s
+              - Color scheme: MISSION DARK (current) / HIGH CONTRAST
+              - Clock: UTC / MET / BOTH (top bar clock display)
+            Right col: SIMULATION SETTINGS
+              - Fault type selector: THRUSTER LEAK (default) / SENSOR DROPOUT /
+                BATTERY CELL FAULT / COMM BLACKOUT
+              - Fault severity: SUBTLE / MODERATE / SEVERE (slider)
+              - Manual fault inject button (same as F key)
+              - Reset button (same as R key)
+              - Note: "Press [F] to inject, [R] to reset from any page"
+
+  15.4  Keyboard shortcuts overlay
+          Press '?' → modal overlay appears listing all shortcuts:
+            F — Inject fault
+            R — Reset fault
+            1–8 — Navigate to page 1–8
+            Esc — Close modal / dismiss
+          Styled as dark frosted overlay, centered, monospace font
+          Click outside or Esc dismisses
+
+  15.5  Page transition animation
+          CSS: .page { opacity:0; transition: opacity 0.15s ease; }
+                .page:not(.hidden) { opacity:1; }
+          Plus pointer-events:none when opacity:0
+
+  15.6  Fault injection UX sweep
+          When F pressed:
+            - Topbar status badge: NOMINAL → FAULT (red, pulse)
+            - Brief red flash (100ms) on entire topbar
+            - Console event: push CRITICAL to event log (Phase 13 hook)
+            - If on Overview: sc-dot-pres and sc-dot-roll go yellow within 10s
+          When R pressed:
+            - Badge returns to NOMINAL (green)
+            - sc-dots return to green
+            - All drift state reset to zero
+
+  15.7  Responsive final check
+          Test at 1440×900 (target) and 1280×800 (minimum)
+          Fix any panel overflow with overflow:hidden + min-width guards
+          Sidebar collapses to icon-only below 1300px total width:
+            - nav-label hidden, only nav-icon shown (40px wide sidebar)
+            - Tooltip appears on hover showing label
+
+  15.8  Full end-to-end QA checklist
+          [ ] All 8 nav items clickable, no "nav-stub" items remain
+          [ ] No console errors on any page
+          [ ] Hubble.glb loads (not procedural fallback)
+          [ ] All canvases render without squish / blur
+          [ ] MET counter advances correctly
+          [ ] F key: fault propagates across all relevant pages
+          [ ] R key: full reset confirmed on all pages
+          [ ] Event Log accumulates events from fault injection
+          [ ] Commanded page shows ADCS-AUTO commands during fault
+          [ ] Thruster page shows elevated fire frequency during fault
+          [ ] CSV export from Event Log downloads valid file
+          [ ] '?' key shows keyboard shortcut overlay
+          [ ] Page transitions are smooth (150ms fade)
+          [ ] No layout overflow at 1440×900
+
+
+================================================================================
+IMPLEMENTATION ORDER SUMMARY
+================================================================================
+
+Phase 7:  TM Engine Extensions               (~120 lines new JS)
+Phase 8:  Power Page                         (~220 lines HTML+CSS+JS)
+Phase 9:  Thermal Page                       (~200 lines)
+Phase 10: Propulsion Page                    (~220 lines)
+Phase 11: Communications Page                (~230 lines)
+Phase 12: Data Page                          (~180 lines)
+Phase 13: Event Log Page                     (~200 lines)
+Phase 14: Commanded Page                     (~160 lines)
+Phase 15: Overview Upgrades + Settings + QA  (~200 lines)
+
+ESTIMATED TOTAL NEW CODE:  ~1,730 lines
+ESTIMATED NEW TOTAL FILE:  ~4,300 lines (still single-file HTML)
+
+Each phase can be independently tested by:
+  1. python3 -m http.server 8080  (already running)
+  2. Open http://localhost:8080/index.html
+  3. Click the relevant nav item and observe
+
+Phases 7 and 8 are the critical path — all later pages depend on
+the new TM values from Phase 7. Start there.
+
+================================================================================
+END OF PLAN
+================================================================================

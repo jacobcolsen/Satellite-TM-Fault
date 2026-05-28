@@ -474,8 +474,9 @@ body { display:flex; }
 }
 .ps-l { color:var(--text-dim); font-size:9.5px; letter-spacing:1px; text-transform:uppercase; }
 .ps-v { font-family:var(--font-mono); color:var(--text-mono); font-size:11px; }
-.ps-v.green { color:var(--status-nom); font-weight:700; letter-spacing:1px; }
-.ps-v.yellow{ color:var(--status-warn); font-weight:700; }
+.ps-v.green  { color:var(--status-nom);  font-weight:700; letter-spacing:1px; }
+.ps-v.yellow { color:var(--status-warn); font-weight:700; }
+.ps-v.red    { color:var(--status-crit); font-weight:700; letter-spacing:1px; }
 .power-bar-wrap { flex-shrink:0; }
 #power-bar { width:100%; display:block; }
 
@@ -857,16 +858,17 @@ body { display:flex; }
           <div class="sc-body">
             <div class="sc-canvas-wrap">
               <canvas id="sat-canvas"></canvas>
+              <div id="sat-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:2px;pointer-events:none;">LOADING MODEL...</div>
             </div>
             <div id="sc-status-list">
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Bus V</span><span class="sc-val" id="sc-busv">28.14 V</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Power</span><span class="sc-val" id="sc-pwr">299.9 W</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Batt SOC</span><span class="sc-val" id="sc-soc">82.4 %</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">OBC Temp</span><span class="sc-val" id="sc-temp">22.4 °C</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Roll</span><span class="sc-val" id="sc-roll">0.003°</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Pitch</span><span class="sc-val" id="sc-pitch">0.001°</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Tank Pres</span><span class="sc-val" id="sc-pres">312.4 psi</span></div>
-              <div class="sc-row"><span class="sc-dot nom"></span><span class="sc-label">Altitude</span><span class="sc-val" id="sc-alt">408.0 km</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-busv"></span><span class="sc-label">Bus V</span><span class="sc-val" id="sc-busv">28.14 V</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-pwr"></span><span class="sc-label">Power</span><span class="sc-val" id="sc-pwr">299.9 W</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-soc"></span><span class="sc-label">Batt SOC</span><span class="sc-val" id="sc-soc">82.4 %</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-temp"></span><span class="sc-label">OBC Temp</span><span class="sc-val" id="sc-temp">22.4 °C</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-roll"></span><span class="sc-label">Roll</span><span class="sc-val" id="sc-roll">0.003°</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-pitch"></span><span class="sc-label">Pitch</span><span class="sc-val" id="sc-pitch">0.001°</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-pres"></span><span class="sc-label">Tank Pres</span><span class="sc-val" id="sc-pres">312.4 psi</span></div>
+              <div class="sc-row"><span class="sc-dot nom" id="sc-dot-alt"></span><span class="sc-label">Altitude</span><span class="sc-val" id="sc-alt">408.0 km</span></div>
             </div>
           </div>
         </div>
@@ -1160,36 +1162,36 @@ body { display:flex; }
           </div>
           <div class="passes-body" id="passes-content">
             <div class="pass-row">
-              <div class="pass-sta">GOLDSTONE DSN</div>
+              <div class="pass-sta" id="pass1-sta">GOLDSTONE DSN</div>
               <div class="pass-times">
-                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass1-aos">NOW</span></span>
-                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass1-los">+12 min</span></span>
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass1-aos">00:00</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass1-los">12:00</span></span>
               </div>
               <div class="pass-el" id="pass1-el">MAX EL 72.4°</div>
             </div>
             <div class="pass-row">
-              <div class="pass-sta">MADRID DSN</div>
+              <div class="pass-sta" id="pass2-sta">MADRID DSN</div>
               <div class="pass-times">
-                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass2-aos">+35 min</span></span>
-                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass2-los">+47 min</span></span>
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass2-aos">35:00</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass2-los">47:00</span></span>
               </div>
-              <div class="pass-el">MAX EL 31.2°</div>
+              <div class="pass-el" id="pass2-el">MAX EL 31.2°</div>
             </div>
             <div class="pass-row">
-              <div class="pass-sta">CANBERRA DSN</div>
+              <div class="pass-sta" id="pass3-sta">CANBERRA DSN</div>
               <div class="pass-times">
-                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass3-aos">+67 min</span></span>
-                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass3-los">+79 min</span></span>
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass3-aos">67:00</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass3-los">79:00</span></span>
               </div>
-              <div class="pass-el">MAX EL 44.8°</div>
+              <div class="pass-el" id="pass3-el">MAX EL 44.8°</div>
             </div>
             <div class="pass-row">
-              <div class="pass-sta">GOLDSTONE DSN</div>
+              <div class="pass-sta" id="pass4-sta">GOLDSTONE DSN</div>
               <div class="pass-times">
-                <span><span class="pass-t-l">AOS </span><span class="pass-t-v">+97 min</span></span>
-                <span><span class="pass-t-l">LOS </span><span class="pass-t-v">+110 min</span></span>
+                <span><span class="pass-t-l">AOS </span><span class="pass-t-v" id="pass4-aos">92:48</span></span>
+                <span><span class="pass-t-l">LOS </span><span class="pass-t-v" id="pass4-los">104:48</span></span>
               </div>
-              <div class="pass-el">MAX EL 58.1°</div>
+              <div class="pass-el" id="pass4-el">MAX EL 58.1°</div>
             </div>
           </div>
         </div>
@@ -1319,12 +1321,18 @@ class TelemetryEngine {
       PROP_MASS:24.820,
       PROP_V1_FLOW:0, PROP_V2_FLOW:0, PROP_V3_FLOW:0,
       PROP_V4_FLOW:0, PROP_V5_FLOW:0, PROP_V8_FLOW:0,
+      PROP_FLOW_RATE:0.0, PROP_DV_USED:20.3, PROP_DV_REMAIN:67.0,
       THERM_PANEL_A:-22.4, THERM_BATT:14.1, THERM_PROP_LINE:16.3,
+      THERM_OBC:22.4, THERM_STRUCT:17.2, THERM_COMMS:25.1, THERM_PLD:21.3,
       ME_TANK_PRESS:445.2, ME_FUEL_FLOW:0.000, ME_OX_FLOW:0.000,
       ME_CHAMBER_PRESS:0.0, ME_NOZZLE_TEMP:22.4,
       PLD_LASER_ALIGN:0.003, PLD_SHARK_TEMP:21.3,
       PLD_SHARK_ACT:78.0, PLD_PHOTON_OUT:847.0,
-      ALTITUDE:408.0
+      ALTITUDE:408.0,
+      // ── Phase 7 extensions ──────────────────────────────────
+      PWR_GEN_EFF:94.2, PWR_CHARGE_A:1.84,
+      COMMS_RSSI:-87.0, COMMS_DOPPLER:0.0, COMMS_BER_LOG:-8.2,
+      DATA_SSR_FILL:34.2, DATA_RATE_SCI:1024, DATA_RATE_HK:64
     };
 
     // ── noise sigmas ──────────────────────────────────────────
@@ -1339,12 +1347,17 @@ class TelemetryEngine {
       PROP_MASS:0.002,
       PROP_V1_FLOW:0.004, PROP_V2_FLOW:0.004, PROP_V3_FLOW:0.005,
       PROP_V4_FLOW:0.004, PROP_V5_FLOW:0.004, PROP_V8_FLOW:0.004,
+      PROP_FLOW_RATE:0.001, PROP_DV_USED:0, PROP_DV_REMAIN:0,
       THERM_PANEL_A:0.3, THERM_BATT:0.10, THERM_PROP_LINE:0.05,
+      THERM_OBC:0.08, THERM_STRUCT:0.05, THERM_COMMS:0.12, THERM_PLD:0.05,
       ME_TANK_PRESS:0.25, ME_FUEL_FLOW:0.002, ME_OX_FLOW:0.002,
       ME_CHAMBER_PRESS:0.4, ME_NOZZLE_TEMP:0.10,
       PLD_LASER_ALIGN:0.001, PLD_SHARK_TEMP:0.05,
       PLD_SHARK_ACT:0.4, PLD_PHOTON_OUT:1.2,
-      ALTITUDE:0.05
+      ALTITUDE:0.05,
+      PWR_GEN_EFF:0.3, PWR_CHARGE_A:0.05,
+      COMMS_RSSI:0.3, COMMS_DOPPLER:0.02, COMMS_BER_LOG:0.2,
+      DATA_SSR_FILL:0, DATA_RATE_SCI:20, DATA_RATE_HK:0
     };
 
     this.val  = Object.assign({}, this.nom);
@@ -1365,6 +1378,62 @@ class TelemetryEngine {
     this.events       = [];
     this._alertId     = 0;
     this._lastAlertT  = -999;
+
+    // ── Phase 7: power arrays ────────────────────────────────
+    this.cellVoltages   = [4.023,4.018,4.021,4.015,4.025,4.019]; // V
+    this.eclipse        = false;
+
+    // ── Phase 7: propulsion objects ──────────────────────────
+    this.thrusterStatus = [
+      {id:'A1',name:'RCS-A1',type:'1N ROLL',  temp:19.2,firings:0,ok:true},
+      {id:'A2',name:'RCS-A2',type:'1N ROLL',  temp:18.8,firings:0,ok:true},
+      {id:'A3',name:'RCS-A3',type:'1N ROLL',  temp:19.5,firings:0,ok:true},
+      {id:'A4',name:'RCS-A4',type:'1N ROLL',  temp:18.4,firings:0,ok:true},
+      {id:'B1',name:'RCS-B1',type:'4N YAW',   temp:20.1,firings:0,ok:true},
+      {id:'B2',name:'RCS-B2',type:'4N YAW',   temp:19.9,firings:0,ok:true},
+      {id:'ME',name:'ME',    type:'22N MAIN', temp:22.4,firings:0,ok:true},
+      {id:'EV',name:'EVDP',  type:'EV PURGE', temp:18.1,firings:0,ok:true},
+    ];
+    this.thrusterEvents = [];            // {met, thruster, dur_ms, dv_mm_s, cause}
+    this._thrFiringCD   = 0;            // cooldown counter (s)
+    this._dvUsed        = 20.3;         // m/s already consumed pre-session
+
+    // ── Phase 7: comms counters ──────────────────────────────
+    this.framesDown  = 0;
+    this.framesUp    = 0;
+    this._inContact  = false;
+
+    // ── Phase 7: data / SSR ──────────────────────────────────
+    this._ssrFill    = 34.2;            // % (separate integrator)
+    this.dataProducts = [
+      {id:'OBS_2026_001',type:'SCIENCE', sizeMB:42.3,status:'COMPLETE', priority:1},
+      {id:'CAL_FRAME_44',type:'CAL',     sizeMB: 8.1,status:'COMPLETE', priority:3},
+      {id:'OBS_2026_002',type:'SCIENCE', sizeMB:38.7,status:'QUEUED',   priority:1},
+      {id:'HK_DUMP_019', type:'HK',      sizeMB: 2.4,status:'QUEUED',   priority:2},
+      {id:'SHARK_IMG_07',type:'PAYLOAD', sizeMB:15.6,status:'QUEUED',   priority:2},
+    ];
+
+    // ── Phase 7: event log (merged with attitude alerts) ─────
+    this.allEvents   = [];              // full event log for Event Log page
+    this._evSeq      = 0;              // incrementing sequence number
+    // Seed synthetic boot events
+    const seedEvts = [
+      {sub:'C&DH',   sev:'INFO',    msg:'Boot complete. FM v2.4.1'},
+      {sub:'COMMS',  sev:'INFO',    msg:'AOS GOLDSTONE DSN. RSSI −84.2 dBm'},
+      {sub:'POWER',  sev:'INFO',    msg:'Eclipse entry predicted T+42:18'},
+      {sub:'ADCS',   sev:'NOMINAL', msg:'Fine pointing achieved. err < 0.1°'},
+      {sub:'COMMS',  sev:'INFO',    msg:'Doppler peak. freq 2287.506 MHz'},
+      {sub:'DATA',   sev:'INFO',    msg:'Science collect: OBS_2026_001 started'},
+      {sub:'POWER',  sev:'INFO',    msg:'Eclipse entry. SOC 82.1%'},
+      {sub:'POWER',  sev:'NOMINAL', msg:'Daylight restored. Charging 1.84 A'},
+      {sub:'COMMS',  sev:'INFO',    msg:'LOS GOLDSTONE DSN'},
+      {sub:'DATA',   sev:'INFO',    msg:'Product OBS_2026_001 complete (42.3 MB)'},
+      {sub:'COMMS',  sev:'NOMINAL', msg:'AOS MADRID DSN. RSSI −88.4 dBm'},
+      {sub:'PAYLOAD',sev:'INFO',    msg:'SHARK activity nominal 78.2%'},
+    ];
+    seedEvts.forEach((e,i)=>{
+      this.allEvents.push({seq:++this._evSeq, met:(i+1)*30, sub:e.sub, sev:e.sev, msg:e.msg, opr:'—'});
+    });
 
     // ── integrated physics state (attitude) ───────────────────
     this._oscPhase      = 0;
@@ -1531,6 +1600,10 @@ class TelemetryEngine {
     v.THERM_PANEL_A   = n.THERM_PANEL_A   + g('THERM_PANEL_A');
     v.THERM_BATT      = n.THERM_BATT      + this._battHeat    + g('THERM_BATT');
     v.THERM_PROP_LINE = n.THERM_PROP_LINE + this._propLineCool + g('THERM_PROP_LINE');
+    // Phase 7 thermal extensions
+    v.THERM_OBC    = n.THERM_OBC    + this._battHeat*0.3   + g('THERM_OBC');
+    v.THERM_STRUCT = n.THERM_STRUCT + g('THERM_STRUCT');
+    v.THERM_PLD    = n.THERM_PLD    + this._battHeat*0.5   + g('THERM_PLD');
 
     // ── MAIN ENGINE ──────────────────────────────────────────
     v.ME_TANK_PRESS    = n.ME_TANK_PRESS    + g('ME_TANK_PRESS');
@@ -1538,6 +1611,127 @@ class TelemetryEngine {
     v.ME_OX_FLOW       = Math.max(0, g('ME_OX_FLOW'));
     v.ME_CHAMBER_PRESS = Math.max(0, g('ME_CHAMBER_PRESS'));
     v.ME_NOZZLE_TEMP   = n.ME_NOZZLE_TEMP  + g('ME_NOZZLE_TEMP');
+
+    // ── PHASE 7: POWER EXTENSIONS ────────────────────────────
+    // Eclipse: trueAnomaly 200°–270° = shadow zone (~13% of orbit)
+    this.eclipse = (this.trueAnomaly >= 200 && this.trueAnomaly < 270);
+    const solarTotal = v.PWR_SOLAR_A + v.PWR_SOLAR_B;
+    // Solar array efficiency degrades as panel heats
+    v.PWR_GEN_EFF  = Math.max(60, 95 - (v.THERM_PANEL_A + 40)*0.12 + this._gauss(0.3));
+    // Charge current: positive = charging, negative = discharging
+    v.PWR_CHARGE_A = (solarTotal - v.PWR_BUS_LOAD) / Math.max(v.PWR_BATT_V, 20) + this._gauss(0.05);
+    // Battery cell voltages (array — not in hist)
+    const socShift = (v.PWR_BATT_SOC - 82) * 0.002;
+    this.cellVoltages = Array.from({length:6}, (_, i) =>
+      Math.max(3.50, 4.020 + socShift + this._gauss(0.005)
+        + (this.faultActive ? this._gauss(0.008) * (i % 3 === 0 ? 1.4 : 0.6) : 0))
+    );
+
+    // ── PHASE 7: PROPULSION EXTENSIONS ───────────────────────
+    // Delta-V via Tsiolkovsky: Isp=235s, g0=9.807 m/s²
+    const Isp = 235, g0 = 9.807;
+    this._dvUsed = Isp * g0 * Math.log(n.PROP_MASS / Math.max(0.1, v.PROP_MASS));
+    v.PROP_DV_USED   = this._dvUsed;
+    v.PROP_DV_REMAIN = Math.max(0, 87.3 - this._dvUsed);
+    // Instantaneous flow rate from pressure loss rate
+    v.PROP_FLOW_RATE = Math.max(0,
+      (this._pressLoss / Math.max(this.missionElapsed, 1)) * 0.34 + this._gauss(0.001));
+    // Thruster temp updates under fault (A1 & A3 heat up)
+    if (this.faultActive && !this.overwhelmed) {
+      const M2 = this.magnitude();
+      this.thrusterStatus[0].temp = 19.2 + 4.0*M2 + this._gauss(0.1); // A1
+      this.thrusterStatus[2].temp = 19.5 + 3.8*M2 + this._gauss(0.1); // A3
+    } else if (!this.faultActive) {
+      this.thrusterStatus[0].temp = 19.2 + this._gauss(0.05);
+      this.thrusterStatus[2].temp = 19.5 + this._gauss(0.05);
+    }
+    // ADCS correction thruster firings
+    if (this._thrFiringCD > 0) {
+      this._thrFiringCD -= dt;
+    } else {
+      const attErrR = Math.abs(v.ATT_ROLL);
+      const shouldFire = attErrR > 0.5 || (this.faultActive && this.magnitude() > 0.05);
+      if (shouldFire && !this.overwhelmed) {
+        const dur_ms = Math.round(60 + attErrR * 12);
+        const dv_mm_s = parseFloat((dur_ms * 0.001 * 0.018 * 1000).toFixed(3));
+        const cause = this.faultActive ? 'FAULT-INDUCED ADCS' : 'ADCS CORRECTION';
+        this.thrusterEvents.unshift({
+          met: this.missionElapsed, thruster:'A1+A3',
+          dur_ms, dv_mm_s, cause
+        });
+        if (this.thrusterEvents.length > 20) this.thrusterEvents.pop();
+        this.thrusterStatus[0].firings++;
+        this.thrusterStatus[2].firings++;
+        // Also log to allEvents (throttled: only if >30s since last ADCS event)
+        const lastADCS = this.allEvents.find(e => e.sub === 'ADCS' && e.sev !== 'CRITICAL');
+        if (!lastADCS || this.missionElapsed - lastADCS.met > 30) {
+          this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+            sub:'ADCS', sev:'INFO',
+            msg:`Correction burn A1+A3  dur=${dur_ms}ms  dv=${dv_mm_s} mm/s`,
+            opr:'—'});
+          if (this.allEvents.length > 200) this.allEvents.pop();
+        }
+        this._thrFiringCD = this.faultActive ? 8 : 90;
+      }
+    }
+
+    // ── PHASE 7: COMMS EXTENSIONS ────────────────────────────
+    const PERIOD_S2 = 5568;
+    const orbitPhase = this.missionElapsed % PERIOD_S2;
+    // Contact windows: Goldstone 0-720s, Madrid 2100-2820s, Canberra 4020-4740s
+    const wasInContact = this._inContact;
+    this._inContact = (orbitPhase < 720)
+                   || (orbitPhase >= 2100 && orbitPhase < 2820)
+                   || (orbitPhase >= 4020 && orbitPhase < 4740);
+    // Log AOS/LOS transitions
+    if (!wasInContact && this._inContact) {
+      const sta = orbitPhase < 720 ? 'GOLDSTONE' : orbitPhase < 2820 ? 'MADRID' : 'CANBERRA';
+      this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+        sub:'COMMS', sev:'INFO', msg:`AOS ${sta} DSN`, opr:'—'});
+      if (this.allEvents.length > 200) this.allEvents.pop();
+    }
+    if (wasInContact && !this._inContact) {
+      this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+        sub:'COMMS', sev:'INFO', msg:'LOS ground station', opr:'—'});
+      if (this.allEvents.length > 200) this.allEvents.pop();
+    }
+    // Doppler: ±6.2 kHz peak (cos(inc) projects velocity onto LOS)
+    v.COMMS_DOPPLER = 6.2*Math.sin(this.trueAnomaly*Math.PI/180)*Math.cos(51.6*Math.PI/180)
+                      + this._gauss(0.02);
+    if (this._inContact) {
+      v.COMMS_RSSI     = -87.0 + Math.sin(this.missionElapsed*0.04)*2.1 + this._gauss(0.3);
+      v.COMMS_BER_LOG  = -8.2 + this._gauss(0.2);
+      v.THERM_COMMS    = n.THERM_COMMS + 2.1 + this._gauss(0.12); // transponder warms up
+      this.framesDown += 512;
+      this.framesUp   += 64;
+    } else {
+      v.COMMS_RSSI    = -130;   // below noise floor — no signal
+      v.COMMS_BER_LOG = -10;
+      v.THERM_COMMS   = n.THERM_COMMS + this._gauss(0.12);
+    }
+
+    // ── PHASE 7: DATA / SSR EXTENSIONS ───────────────────────
+    const ssrFillRate  = 0.018 / 60;    // % per second (science + HK accrual)
+    const ssrDrainRate = this._inContact ? 0.9 / 60 : 0; // % per second downlink
+    this._ssrFill = Math.max(0, Math.min(100,
+      this._ssrFill + (ssrFillRate - ssrDrainRate) * dt));
+    v.DATA_SSR_FILL  = this._ssrFill;
+    v.DATA_RATE_SCI  = 1024 + this._gauss(20);
+    v.DATA_RATE_HK   = 64;
+    // Cycle data product status based on contact
+    if (this._inContact) {
+      const qIdx = this.dataProducts.findIndex(p => p.status === 'QUEUED');
+      if (qIdx >= 0) this.dataProducts[qIdx].status = 'DOWNLINKING';
+    } else {
+      this.dataProducts.forEach(p => {
+        if (p.status === 'DOWNLINKING') { p.status = 'COMPLETE'; }
+      });
+      // Refresh queue: if all complete, recycle oldest two
+      if (this.dataProducts.every(p => p.status === 'COMPLETE')) {
+        this.dataProducts[2].status = 'QUEUED';
+        this.dataProducts[4].status = 'QUEUED';
+      }
+    }
 
     // ── PAYLOAD ──────────────────────────────────────────────
     v.PLD_LASER_ALIGN = Math.max(0, n.PLD_LASER_ALIGN + this._alignDrift + g('PLD_LASER_ALIGN'));
@@ -1549,13 +1743,18 @@ class TelemetryEngine {
     const rollAbs = Math.abs(v.ATT_ROLL);
     if (rollAbs > 1.0 && (this.missionElapsed - this._lastAlertT) > 8) {
       const sev = rollAbs > 5 ? 'CRITICAL' : rollAbs > 2 ? 'WARN' : 'INFO';
+      const alertMsg = `ATT EXCEEDANCE  ROLL=${v.ATT_ROLL.toFixed(2)}°  PITCH=${v.ATT_PITCH.toFixed(2)}°`;
       this.events.unshift({
         id:   ++this._alertId,
         met:  this.missionElapsed,
         type: sev,
-        msg:  `ATT EXCEEDANCE  ROLL=${v.ATT_ROLL.toFixed(2)}°  PITCH=${v.ATT_PITCH.toFixed(2)}°`
+        msg:  alertMsg
       });
       if (this.events.length > 15) this.events.pop();
+      // Mirror to full event log
+      this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+        sub:'ADCS', sev, msg:alertMsg, opr:'—'});
+      if (this.allEvents.length > 200) this.allEvents.pop();
       this._lastAlertT = this.missionElapsed;
     }
 
@@ -1567,7 +1766,13 @@ class TelemetryEngine {
   }
 
   injectFault() {
-    if (!this.faultActive) { this.faultActive = true; this.faultElapsed = 0; }
+    if (!this.faultActive) {
+      this.faultActive = true; this.faultElapsed = 0;
+      this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+        sub:'ADCS', sev:'CRITICAL',
+        msg:'FAULT INJECTED — thruster valve A1 stuck open', opr:'—'});
+      if (this.allEvents.length > 200) this.allEvents.pop();
+    }
   }
 
   resetFault() {
@@ -1578,19 +1783,74 @@ class TelemetryEngine {
     this._massLoss=0; this._pressLoss=0; this._adcsExtra=0;
     this._battHeat=0; this._propLineCool=0; this._alignDrift=0;
     this.events=[];
+    // Phase 7 reset
+    this.thrusterStatus.forEach(t => { t.temp = [19.2,18.8,19.5,18.4,20.1,19.9,22.4,18.1][this.thrusterStatus.indexOf(t)]; });
+    this._thrFiringCD = 0;
+    this.allEvents.unshift({seq:++this._evSeq, met:this.missionElapsed,
+      sub:'ADCS', sev:'INFO',
+      msg:'Fault cleared — ADCS resumed nominal control', opr:'OPERATOR'});
+    if (this.allEvents.length > 200) this.allEvents.pop();
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
 // CANVAS SIZER
 // ═══════════════════════════════════════════════════════════════
+const DPR = window.devicePixelRatio || 1;
+
 function sizeCanvas(el) {
   if (!el) return;
-  const r = el.getBoundingClientRect();
-  el.width  = Math.round(r.width  || el.offsetWidth  || 400);
-  el.height = Math.round(r.height || el.offsetHeight || 200);
-  el._cssW  = el.width;
-  el._cssH  = el.height;
+  const r   = el.getBoundingClientRect();
+  const cssW = Math.round(r.width)  || Math.round(el.offsetWidth)  || 0;
+  const cssH = Math.round(r.height) || Math.round(el.offsetHeight) || 0;
+  if (cssW < 4 || cssH < 4) return;          // layout not settled yet — skip
+  el.width  = Math.round(cssW * DPR);        // physical pixels → crisp on retina
+  el.height = Math.round(cssH * DPR);
+  el._cssW  = cssW;                          // CSS pixels → used by Three.js setSize
+  el._cssH  = cssH;
+}
+
+// All canvas IDs that should be kept correctly sized
+const ALL_CANVAS_IDS = [
+  'sat-canvas','orbit-mini-canvas','att-mini-chart',
+  'groundtrack-canvas','batt-gauge','sig-gauge','power-bar',
+  'orbit-canvas','orbit-shape-canvas','adi-canvas',
+  'groundtrack2-canvas','alt-profile-canvas',
+  'ch-angles','ch-rates','ch-rw','ch-power','ch-prop','ch-flow',
+];
+
+function sizeAllCanvases() {
+  ALL_CANVAS_IDS.forEach(id => {
+    const c = document.getElementById(id);
+    if (c) sizeCanvas(c);
+  });
+  // Re-fit Three.js renderers if they've already been created
+  if (typeof satRenderer !== 'undefined' && satRenderer) {
+    const c = document.getElementById('sat-canvas');
+    if (c && c._cssW > 0) {
+      satRenderer.setSize(c._cssW, c._cssH, false);
+      if (satCamera) { satCamera.aspect = c._cssW / c._cssH; satCamera.updateProjectionMatrix(); }
+    }
+  }
+  if (typeof orbitRenderer !== 'undefined' && orbitRenderer) {
+    const c = document.getElementById('orbit-canvas');
+    if (c && c._cssW > 0) {
+      orbitRenderer.setSize(c._cssW, c._cssH, false);
+      if (orbitCamera) { orbitCamera.aspect = c._cssW / c._cssH; orbitCamera.updateProjectionMatrix(); }
+    }
+  }
+}
+
+// Auto-correct a single canvas if its bitmap no longer matches its CSS box
+// (called at the top of each 2D draw function)
+function autoSize(c) {
+  if (!c) return;
+  const r = c.getBoundingClientRect();
+  const w = Math.round(r.width * DPR), h = Math.round(r.height * DPR);
+  if (w > 4 && h > 4 && (c.width !== w || c.height !== h)) {
+    c.width = w; c.height = h;
+    c._cssW = Math.round(r.width); c._cssH = Math.round(r.height);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1638,27 +1898,48 @@ function initSatViewer() {
   satScene.userData.pivot = pivot;
   satScene.add(pivot);
 
-  // Load Hubble GLB from disk
-  const loader = new GLTFLoader();
-  loader.load('Hubble.glb',
-    (gltf) => {
-      const model = gltf.scene;
-      pivot.add(model);
-      // Auto-fit: measure bounding box after adding to scene so transforms apply
-      const box    = new THREE.Box3().setFromObject(pivot);
-      const size   = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const fovRad = satCamera.fov * Math.PI / 180;
-      // Pull camera back 1.5× the distance needed to fit maxDim in frame
-      const dist   = (maxDim / 2) / Math.tan(fovRad / 2) * 1.55;
-      satCamera.position.set(center.x, center.y + size.y * 0.12, center.z + dist);
-      satCamera.lookAt(center);
-      satCamera.updateProjectionMatrix();
-    },
-    undefined,
-    (err) => { console.warn('Hubble.glb load failed, using procedural fallback:', err); buildProceduralSat(pivot); }
-  );
+  // Load Hubble GLB — retry once on failure
+  const loadHubble = (attempt) => {
+    const loader = new GLTFLoader();
+    loader.load('Hubble.glb',
+      (gltf) => {
+        try {
+          const model = gltf.scene;
+          pivot.add(model);
+          // Auto-fit: measure bounding box after adding to scene so transforms apply
+          const box    = new THREE.Box3().setFromObject(pivot);
+          const size   = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const fovRad = satCamera.fov * Math.PI / 180;
+          const dist   = (maxDim / 2) / Math.tan(fovRad / 2) * 1.55;
+          satCamera.position.set(center.x, center.y + size.y * 0.12, center.z + dist);
+          satCamera.lookAt(center);
+          satCamera.updateProjectionMatrix();
+          const ld = document.getElementById('sat-loading');
+          if (ld) ld.style.display = 'none';          // hide loading overlay
+        } catch(e) {
+          console.error('GLB onLoad error:', e);
+          buildProceduralSat(pivot);
+          const ld = document.getElementById('sat-loading');
+          if (ld) ld.style.display = 'none';
+        }
+      },
+      undefined,
+      (err) => {
+        console.warn(`Hubble.glb load failed (attempt ${attempt}):`, err);
+        if (attempt < 2) {
+          setTimeout(() => loadHubble(attempt + 1), 2000);  // retry once after 2s
+        } else {
+          console.warn('Using procedural fallback after retry');
+          buildProceduralSat(pivot);
+          const ld = document.getElementById('sat-loading');
+          if (ld) ld.style.display = 'none';
+        }
+      }
+    );
+  };
+  loadHubble(1);
 }
 
 function buildProceduralSat(pivot) {
@@ -1767,6 +2048,36 @@ function initOrbitViewer() {
 // ═══════════════════════════════════════════════════════════════
 const STATIONS = ['GOLDSTONE','MADRID','CANBERRA'];
 
+// Pass schedule: AOS offsets within a 5568s orbit (seconds from orbit start)
+const PASS_SLOTS = [
+  {sta:'GOLDSTONE DSN', offset:0,    dur:720, el:'72.4°'},
+  {sta:'MADRID DSN',    offset:2100, dur:720, el:'31.2°'},
+  {sta:'CANBERRA DSN',  offset:4020, dur:720, el:'44.8°'},
+];
+
+function computeNextPasses(met) {
+  const T = 5568;
+  const orbit0 = Math.floor(met / T);
+  const result = [];
+  for (let o = orbit0; o <= orbit0 + 3 && result.length < 4; o++) {
+    for (const slot of PASS_SLOTS) {
+      const aos = o * T + slot.offset;
+      const los = aos + slot.dur;
+      if (los > met) {
+        result.push({sta:slot.sta, aos, los, el:slot.el, active:(met>=aos && met<los)});
+        if (result.length >= 4) break;
+      }
+    }
+  }
+  return result;
+}
+
+function fmtCountdown(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const m = Math.floor(s / 60);
+  return String(m).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+}
+
 function updateHeader(tm) {
   const sec = Math.floor(tm.missionElapsed);
   const h   = String(Math.floor(sec/3600)).padStart(3,'0');
@@ -1780,9 +2091,38 @@ function updateHeader(tm) {
   document.getElementById('orb-count').textContent = orbNum;
   document.getElementById('op-orb').textContent    = orbNum;
 
-  const sta = STATIONS[Math.floor(tm.missionElapsed/150)%3];
-  const aos = (Math.floor(tm.missionElapsed/150)%2 === 0);
-  document.getElementById('gs-name').textContent = (aos?'AOS ':'LOS ') + sta;
+  // Ground station and next-pass countdown
+  const passes = computeNextPasses(tm.missionElapsed);
+  const active = passes[0] && passes[0].active;
+  const nextAOS = passes.find(p => !p.active);
+  const sta = passes[0] ? passes[0].sta.replace(' DSN','') : 'GOLDSTONE';
+  document.getElementById('gs-name').textContent = active ? 'AOS ' + sta : 'LOS ' + sta;
+
+  // Topbar next-pass: countdown to next AOS, or "NOW" if in contact
+  const npEl = document.getElementById('next-pass');
+  if (npEl) {
+    if (active) { npEl.textContent = 'AOS NOW'; npEl.style.color='var(--status-nom)'; }
+    else if (nextAOS) {
+      npEl.textContent = fmtCountdown(nextAOS.aos - tm.missionElapsed);
+      npEl.style.color = '';
+    }
+  }
+
+  // Upcoming Passes table rows
+  passes.slice(0,4).forEach((p, i) => {
+    const prefix = 'pass'+(i+1);
+    const aosEl = document.getElementById(prefix+'-aos');
+    const losEl = document.getElementById(prefix+'-los');
+    const elEl  = document.getElementById(prefix+'-el');
+    const staEl = document.getElementById(prefix+'-sta');
+    if (staEl) staEl.textContent = p.sta;
+    if (aosEl) {
+      if (p.active) { aosEl.textContent = 'IN CONTACT'; aosEl.style.color='var(--status-nom)'; }
+      else { aosEl.textContent = fmtCountdown(p.aos - tm.missionElapsed); aosEl.style.color=''; }
+    }
+    if (losEl) losEl.textContent = fmtCountdown(p.los - tm.missionElapsed);
+    if (elEl)  elEl.textContent  = 'MAX EL ' + p.el;
+  });
 
   // System status badge
   const badge = document.getElementById('sys-status');
@@ -1840,6 +2180,7 @@ class StripChart {
     this.series=series; this.yMin=yMin; this.yMax=yMax;
   }
   draw(tm) {
+    autoSize(this.cv);
     const {cv,cx,series,yMin,yMax}=this;
     const W=cv.width,H=cv.height; if(!W||!H) return;
     cx.fillStyle='#02040e'; cx.fillRect(0,0,W,H);
@@ -1895,6 +2236,7 @@ function initCharts() {
 // ADI  (Attitude Direction Indicator)
 // ═══════════════════════════════════════════════════════════════
 function drawADI(canvas, roll, pitch) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const cx=W/2,cy=H/2,R=Math.min(W,H)/2-4;
@@ -1955,6 +2297,7 @@ function drawADI(canvas, roll, pitch) {
 // ARC GAUGE  (reused for battery SOC and signal strength)
 // ═══════════════════════════════════════════════════════════════
 function drawArcGauge(canvas, pct, label) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const cx=W/2,cy=H*.56,R=Math.min(W*.40,H*.47);
@@ -1981,6 +2324,7 @@ function drawArcGauge(canvas, pct, label) {
 // ORBIT MINI  (bird's-eye 2D schematic, overview page)
 // ═══════════════════════════════════════════════════════════════
 function drawOrbitMini(canvas, tm) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const cx=W/2,cy=H/2,md=Math.min(W,H);
@@ -2006,6 +2350,7 @@ function drawOrbitMini(canvas, tm) {
 // ORBIT SHAPE  (tilted 2D ellipse, attitude page)
 // ═══════════════════════════════════════════════════════════════
 function drawOrbitShape(canvas, tm) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const cx=W/2,cy=H/2,md=Math.min(W,H);
@@ -2032,6 +2377,7 @@ function drawOrbitShape(canvas, tm) {
 // GROUND TRACK  (Earth image bg + orbit line + stations)
 // ═══════════════════════════════════════════════════════════════
 function drawGroundTrack(canvas, tm) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   ctx.fillStyle='#030815'; ctx.fillRect(0,0,W,H);
@@ -2119,6 +2465,7 @@ function drawGroundTrack(canvas, tm) {
 // ALTITUDE PROFILE  (strip chart style, attitude page)
 // ═══════════════════════════════════════════════════════════════
 function drawAltProfile(canvas, tm) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const data=tm.hist.ALTITUDE; if(!data||data.length<2) return;
@@ -2148,6 +2495,7 @@ function drawAltProfile(canvas, tm) {
 // POWER BAR  (generation vs load, overview power panel)
 // ═══════════════════════════════════════════════════════════════
 function drawPowerBar(canvas, tm) {
+  autoSize(canvas);
   const ctx=canvas.getContext('2d');
   const W=canvas.width,H=canvas.height; if(!W||!H) return;
   const PAD=6,barH=14,gap=5,lblW=42,MAX=350;
@@ -2175,7 +2523,9 @@ function drawPowerBar(canvas, tm) {
 function updatePanels(tm) {
   const $=id=>document.getElementById(id);
   const set=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
-  // SC overview HUD
+  const setDot=(id,bad,crit)=>{const e=$(id);if(e)e.className='sc-dot '+(crit?'crit':bad?'warn':'nom');};
+
+  // SC overview HUD values
   set('sc-busv', tm.val.PWR_BATT_V.toFixed(2)+' V');
   set('sc-pwr',  tm.val.PWR_BUS_LOAD.toFixed(0)+' W');
   set('sc-soc',  tm.val.PWR_BATT_SOC.toFixed(1)+'%');
@@ -2184,10 +2534,33 @@ function updatePanels(tm) {
   set('sc-pitch',tm.val.ATT_PITCH.toFixed(3)+'°');
   set('sc-pres', tm.val.PROP_TANK_PRESS.toFixed(1)+' psi');
   set('sc-alt',  tm.val.ALTITUDE.toFixed(1)+' km');
+
+  // SC status dots — color-code based on thresholds
+  const rollBad  = Math.abs(tm.val.ATT_ROLL) > 1 || Math.abs(tm.val.ATT_PITCH) > 1;
+  const rollCrit = Math.abs(tm.val.ATT_ROLL) > 5 || Math.abs(tm.val.ATT_PITCH) > 5;
+  const presBad  = tm.val.PROP_TANK_PRESS < 305;
+  const presCrit = tm.val.PROP_TANK_PRESS < 290;
+  const battBad  = tm.val.PWR_BATT_SOC < 70;
+  const battCrit = tm.val.PWR_BATT_SOC < 50;
+  const tempBad  = Math.abs(tm.val.THERM_BATT - 14) > 5;
+  const tempCrit = Math.abs(tm.val.THERM_BATT - 14) > 10;
+  setDot('sc-dot-busv',  false, false);
+  setDot('sc-dot-pwr',   false, false);
+  setDot('sc-dot-soc',   battBad, battCrit);
+  setDot('sc-dot-temp',  tempBad, tempCrit);
+  setDot('sc-dot-roll',  rollBad, rollCrit);
+  setDot('sc-dot-pitch', rollBad, rollCrit);
+  setDot('sc-dot-pres',  presBad, presCrit);
+  setDot('sc-dot-alt',   false, false);
   // Power stats
   set('pw-sola', tm.val.PWR_SOLAR_A.toFixed(1)+' W');
   set('pw-solb', tm.val.PWR_SOLAR_B.toFixed(1)+' W');
   set('pw-load', tm.val.PWR_BUS_LOAD.toFixed(1)+' W');
+  const pwStat = $('pw-status');
+  if (pwStat) {
+    if (tm.faultActive) { pwStat.textContent='FAULT'; pwStat.className='ps-v red'; }
+    else { pwStat.textContent='NOMINAL'; pwStat.className='ps-v green'; }
+  }
   set('pw-battv',tm.val.PWR_BATT_V.toFixed(2)+' V');
   // Thermal rows
   const TV={
@@ -2352,10 +2725,9 @@ document.getElementById('fault-btn').addEventListener('click', () => tm.injectFa
 // BOOT
 // ═══════════════════════════════════════════════════════════════
 function boot() {
-  // Size all overview-page canvases (visible at load)
-  ['sat-canvas','orbit-mini-canvas','att-mini-chart',
-   'groundtrack-canvas','batt-gauge','sig-gauge','power-bar'
-  ].forEach(id => { const c=document.getElementById(id); if(c) sizeCanvas(c); });
+  // Size all visible (overview-page) canvases — attitude-page canvases
+  // are sized later when the nav click makes them visible.
+  sizeAllCanvases();
 
   // Pre-fill 5 min of nominal history so charts start full
   for (let i = 0; i < 600; i++) tm.tick(0.5);
@@ -2364,15 +2736,33 @@ function boot() {
   initSatViewer();
   initOrbitViewer();   // scene/objects inited; renderer resized on nav click
 
+  // Re-size after one frame (browser may not have flushed flex layout yet
+  // during the synchronous boot path).
+  requestAnimationFrame(() => { sizeAllCanvases(); });
+  // Second pass after CSS transitions settle
+  setTimeout(sizeAllCanvases, 300);
+
   requestAnimationFrame(animate);
 }
+
+// Keep all canvases crisp when the user resizes the window
+window.addEventListener('resize', () => { sizeAllCanvases(); });
+
+// Hash-based deep-link navigation (#overview or #attitude)
+function applyHashNav() {
+  const page = location.hash.replace('#','');
+  if (!page) return;
+  const item = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (item) item.click();
+}
+window.addEventListener('hashchange', applyHashNav);
 
 // Module scripts are deferred — 'load' may already have fired by the time
 // this code runs (especially in headless / fast environments).
 if (document.readyState === 'complete') {
-  boot();
+  boot(); applyHashNav();
 } else {
-  window.addEventListener('load', boot);
+  window.addEventListener('load', () => { boot(); applyHashNav(); });
 }
 </script>
 
